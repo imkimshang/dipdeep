@@ -56,7 +56,7 @@ export default function NewProjectPage() {
       alert('프로젝트가 성공적으로 생성되었습니다!')
       
       // Redirect to week1 workbook with project ID
-      router.push(`/workbook/week1?projectId=${project.id}`)
+      router.push(`/workbook/week1?projectId=${(project as any).id}`)
     } catch (error: any) {
       console.error('프로젝트 생성 실패:', error)
       
