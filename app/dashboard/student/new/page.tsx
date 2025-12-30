@@ -39,7 +39,7 @@ export default function NewProjectPage() {
           team_id: formData.team_id || null,
           progress_rate: 0,
           current_step: 0,
-        })
+        } as any)
         .select()
         .single()
 

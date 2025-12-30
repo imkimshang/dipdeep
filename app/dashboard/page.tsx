@@ -36,9 +36,9 @@ export default async function DashboardPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {profile.role === 'teacher' ? (
+      {(profile as any).role === 'teacher' ? (
         <TeacherDashboard />
-      ) : profile.role === 'student' ? (
+      ) : (profile as any).role === 'student' ? (
         <StudentDashboard />
       ) : (
         <div className="min-h-screen flex items-center justify-center">
