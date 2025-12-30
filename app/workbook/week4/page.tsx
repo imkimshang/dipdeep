@@ -706,7 +706,7 @@ export default function Week4Page() {
                     <div className="flex-1">
                       <label className="block text-sm font-semibold text-gray-700 mb-2">결론 (Conclusion)</label>
                       <p className="text-xs text-gray-600 mb-3 font-medium">
-                        "How Might We..." 형식으로 문제를 명확하게 정의하세요.
+                        &quot;How Might We...&quot; 형식으로 문제를 명확하게 정의하세요.
                       </p>
                       <textarea
                         value={formData.conclusion}

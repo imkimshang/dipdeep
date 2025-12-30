@@ -991,7 +991,7 @@ export default function Week12Page() {
                     className="w-full px-4 py-3 bg-white border border-gray-300 rounded-lg text-sm resize-y focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
                   />
                   <p className="mt-2 text-xs text-gray-500">
-                    외부 AI 도구에 입력할 피칭 프롬프트를 작성하거나, 위의 '자동 생성하기' 버튼을 클릭하여 기존 워크북 데이터를 바탕으로 자동 생성할 수 있습니다.
+                    외부 AI 도구에 입력할 피칭 프롬프트를 작성하거나, 위의 &apos;자동 생성하기&apos; 버튼을 클릭하여 기존 워크북 데이터를 바탕으로 자동 생성할 수 있습니다.
                   </p>
                 </div>
 

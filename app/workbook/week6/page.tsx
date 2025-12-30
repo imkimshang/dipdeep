@@ -566,7 +566,7 @@ export default function Week6Page() {
                   HMW 질문 작성
                 </label>
                 <p className="text-xs text-gray-500 mb-3">
-                  "우리가 어떻게 하면 [페르소나]가 [상황]에서 겪는 [불편함]을 [방향]으로 해결할 수 있을까?"
+                  &quot;우리가 어떻게 하면 [페르소나]가 [상황]에서 겪는 [불편함]을 [방향]으로 해결할 수 있을까?&quot;
                 </p>
                 <textarea
                   value={formData.hmwQuestion}
