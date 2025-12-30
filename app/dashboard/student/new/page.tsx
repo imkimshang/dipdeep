@@ -48,7 +48,7 @@ export default function NewProjectPage() {
         throw error
       }
 
-      if (!project || !project.id) {
+      if (!project || !(project as any).id) {
         throw new Error('프로젝트가 생성되지 않았습니다.')
       }
 
