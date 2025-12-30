@@ -15,7 +15,7 @@ export default async function DashboardPage() {
   }
 
   // Get user profile with role
-  const { data: profile } = await supabase
+  const { data: profile }: { data: { role: string } | null } = await supabase
     .from('profiles')
     .select('role')
     .eq('id', user.id)
