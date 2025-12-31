@@ -58,6 +58,29 @@ body {
   .glass {
     @apply bg-white/70 backdrop-blur-2xl border border-white/20;
   }
+
+  .animate-shimmer {
+    animation: shimmer 8s ease-in-out infinite;
+  }
+
+  @keyframes shimmer {
+    0%, 100% {
+      background-position: 0% 50%;
+      filter: hue-rotate(0deg);
+    }
+    25% {
+      background-position: 100% 50%;
+      filter: hue-rotate(20deg);
+    }
+    50% {
+      background-position: 200% 50%;
+      filter: hue-rotate(40deg);
+    }
+    75% {
+      background-position: 100% 50%;
+      filter: hue-rotate(20deg);
+    }
+  }
 }
 
 

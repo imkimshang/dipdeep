@@ -5,7 +5,15 @@ import { useRouter } from 'next/navigation'
 export function useProjectSettings(projectId: string) {
   const supabase = createClient()
   const router = useRouter()
-  const [projectInfo, setProjectInfo] = useState<{ title: string | null; id: string } | null>(null)
+  const [projectInfo, setProjectInfo] = useState<{ 
+    title: string | null
+    id: string
+    is_team?: boolean
+    team_code?: string | null
+    member_emails?: string[]
+    is_owner?: boolean
+    is_hidden?: boolean
+  } | null>(null)
   const [loading, setLoading] = useState(false)
 
   const loadProjectInfo = useCallback(async () => {
@@ -17,16 +25,42 @@ export function useProjectSettings(projectId: string) {
       } = await supabase.auth.getUser()
       if (!user) return
 
+      // 프로젝트 정보 조회 (작성자 또는 팀원 모두 가능)
       const { data: project } = await supabase
         .from('projects')
-        .select('title, id')
+        .select('title, id, is_team, team_code, member_emails, user_id, is_hidden')
         .eq('id', projectId)
-        .eq('user_id', user.id)
         .single()
 
       if (project) {
-        const proj = project as { title: string | null; id: string }
-        setProjectInfo({ title: proj.title, id: proj.id })
+        // 권한 확인: 작성자이거나 팀원인지
+        const isOwner = (project as any).user_id === user.id
+        const memberEmails = (project as any).member_emails || []
+        const isTeamMember = (project as any).is_team && Array.isArray(memberEmails) && memberEmails.includes(user.email || '')
+
+        if (!isOwner && !isTeamMember) {
+          console.error('프로젝트 접근 권한이 없습니다.')
+          return ''
+        }
+
+        const proj = project as { 
+          title: string | null
+          id: string
+          is_team?: boolean
+          team_code?: string | null
+          member_emails?: string[]
+          user_id?: string
+          is_hidden?: boolean
+        }
+        setProjectInfo({ 
+          title: proj.title, 
+          id: proj.id,
+          is_team: proj.is_team || false,
+          team_code: proj.team_code || null,
+          member_emails: proj.member_emails || [],
+          is_owner: isOwner,
+          is_hidden: proj.is_hidden || false,
+        } as any)
         return proj.title || ''
       }
     } catch (error) {
@@ -41,6 +75,12 @@ export function useProjectSettings(projectId: string) {
         return false
       }
 
+      // 팀 프로젝트 수정 권한: 팀 개설자만 가능
+      if (projectInfo.is_team && !projectInfo.is_owner) {
+        console.error('팀 프로젝트명은 팀 개설자만 수정할 수 있습니다.')
+        return false
+      }
+
       setLoading(true)
       try {
         const {
@@ -52,6 +92,7 @@ export function useProjectSettings(projectId: string) {
           return false
         }
 
+        // 개인 프로젝트는 작성자만 수정 가능, 팀 프로젝트는 개설자만 수정 가능
         const { error } = await (supabase.from('projects') as any).update({
           title: newTitle.trim(),
         }).eq('id', projectInfo.id).eq('user_id', user.id)
@@ -73,6 +114,12 @@ export function useProjectSettings(projectId: string) {
   const deleteProject = useCallback(async (): Promise<boolean> => {
     if (!projectInfo) {
       console.error('프로젝트 정보가 없습니다.')
+      return false
+    }
+
+    // 팀 프로젝트 삭제 권한: 팀 개설자만 가능
+    if (projectInfo.is_team && !projectInfo.is_owner) {
+      console.error('팀 프로젝트는 팀 개설자만 삭제할 수 있습니다.')
       return false
     }
 
@@ -192,12 +239,144 @@ export function useProjectSettings(projectId: string) {
     }
   }, [projectInfo, supabase, router])
 
+  const updateTeamMembers = useCallback(
+    async (memberEmails: string[]): Promise<boolean> => {
+      if (!projectInfo) {
+        return false
+      }
+
+      setLoading(true)
+      try {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser()
+
+        if (!user) {
+          router.push('/login')
+          return false
+        }
+
+        // 유효성 검사: 빈 값 제거, 중복 제거, 최대 6명
+        const validEmails = Array.from(new Set(
+          memberEmails.map(email => email.trim()).filter(email => email && email !== user.email)
+        )).slice(0, 6)
+
+        const { error } = await (supabase.from('projects') as any).update({
+          member_emails: validEmails,
+        }).eq('id', projectInfo.id).eq('user_id', user.id)
+
+        if (error) throw error
+
+        setProjectInfo({ ...projectInfo, member_emails: validEmails })
+        return true
+      } catch (error: any) {
+        console.error('팀원 업데이트 오류:', error)
+        return false
+      } finally {
+        setLoading(false)
+      }
+    },
+    [projectInfo, supabase, router]
+  )
+
+  const hideProject = useCallback(async (): Promise<boolean> => {
+    if (!projectInfo) {
+      return false
+    }
+
+    setLoading(true)
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+
+      if (!user) {
+        router.push('/login')
+        return false
+      }
+
+      // 팀 프로젝트 숨김 권한: 팀에 속한 누구나 가능
+      // 개인 프로젝트는 작성자만 숨김 가능
+      let query = (supabase.from('projects') as any).update({
+        is_hidden: true,
+      }).eq('id', projectInfo.id)
+
+      if (!projectInfo.is_team) {
+        // 개인 프로젝트는 작성자만 숨김 가능
+        query = query.eq('user_id', user.id)
+      } else {
+        // 팀 프로젝트는 작성자 또는 팀원 모두 숨김 가능
+        // RLS 정책에서 처리하므로 별도 체크 불필요
+      }
+
+      const { error } = await query
+
+      if (error) throw error
+
+      // 프로젝트 정보 업데이트
+      setProjectInfo({ ...projectInfo, is_hidden: true })
+
+      // 대시보드로 이동하지 않고 현재 페이지에 유지 (토글 기능 지원)
+      return true
+    } catch (error: any) {
+      console.error('프로젝트 숨기기 오류:', error)
+      return false
+    } finally {
+      setLoading(false)
+    }
+  }, [projectInfo, supabase])
+
+  const unhideProject = useCallback(async (): Promise<boolean> => {
+    if (!projectInfo) {
+      return false
+    }
+
+    setLoading(true)
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+
+      if (!user) {
+        router.push('/login')
+        return false
+      }
+
+      // 팀 프로젝트 숨김 해제 권한: 팀에 속한 누구나 가능
+      let query = (supabase.from('projects') as any).update({
+        is_hidden: false,
+      }).eq('id', projectInfo.id)
+
+      if (!projectInfo.is_team) {
+        // 개인 프로젝트는 작성자만 숨김 해제 가능
+        query = query.eq('user_id', user.id)
+      }
+
+      const { error } = await query
+
+      if (error) throw error
+
+      // 프로젝트 정보 업데이트
+      setProjectInfo({ ...projectInfo, is_hidden: false })
+
+      return true
+    } catch (error: any) {
+      console.error('프로젝트 숨김 해제 오류:', error)
+      return false
+    } finally {
+      setLoading(false)
+    }
+  }, [projectInfo, supabase])
+
   return {
     projectInfo,
     loading,
     loadProjectInfo,
     updateProjectTitle,
     deleteProject,
+    updateTeamMembers,
+    hideProject,
+    unhideProject,
   }
 }
 

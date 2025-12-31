@@ -25,6 +25,8 @@ import { WorkbookFooter } from '@/components/workbook/WorkbookFooter'
 import { WorkbookNavigation } from '@/components/workbook/WorkbookNavigation'
 import { ProjectSettingsModal } from '@/components/workbook/ProjectSettingsModal'
 import { ProjectSummaryModal } from '@/components/workbook/ProjectSummaryModal'
+import { WorkbookStatusBar } from '@/components/WorkbookStatusBar'
+import { useProjectAccess } from '@/hooks/useProjectAccess'
 
 export const dynamic = 'force-dynamic'; // 이 페이지는 실시간으로 생성하도록 강제합니다.
 
@@ -70,6 +72,9 @@ export default function Week3Page() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const projectId = searchParams.get('projectId') || ''
+
+  // 권한 검증
+  useProjectAccess(projectId)
 
   // Hooks
   const { loadStepData, saveStepData, submitStep, loading: storageLoading } = useWorkbookStorage(
@@ -857,7 +862,7 @@ export default function Week3Page() {
         type={toastMessage.includes('오류') ? 'error' : 'success'}
       />
       <WorkbookHeader
-        title="Phase 1: Data - 3주차: 가상 페르소나 설정 및 설문 설계"
+        title="Phase 1: Data - 3회: 가상 페르소나 설정 및 설문 설계"
         description="타겟 사용자를 정의하고 조사 방법을 설계합니다."
         phase="Phase 1: Data"
         isScrolled={isScrolled}
@@ -887,7 +892,7 @@ export default function Week3Page() {
           themeColor="indigo"
         />
 
-        <main className="flex-1">
+        <main className="flex-1 pb-16">
           <div className="container mx-auto px-6 py-8 max-w-7xl">
             {/* Section 1: Persona Canvas */}
             <WorkbookSection
@@ -1311,6 +1316,9 @@ export default function Week3Page() {
         onClose={() => setShowProjectSummary(false)}
         onCopy={handleCopySummary}
       />
+
+      {/* 하단 상태 바 */}
+      {projectId && <WorkbookStatusBar projectId={projectId} />}
     </div>
   )
 }

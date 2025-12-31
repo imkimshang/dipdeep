@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
+import { createClient } from '@/utils/supabase/client'
 import {
   Lightbulb,
   MessageSquare,
@@ -21,6 +22,8 @@ import { WorkbookFooter } from '@/components/workbook/WorkbookFooter'
 import { WorkbookNavigation } from '@/components/workbook/WorkbookNavigation'
 import { ProjectSettingsModal } from '@/components/workbook/ProjectSettingsModal'
 import { ProjectSummaryModal } from '@/components/workbook/ProjectSummaryModal'
+import { WorkbookStatusBar } from '@/components/WorkbookStatusBar'
+import { useProjectAccess } from '@/hooks/useProjectAccess'
 
 export const dynamic = 'force-dynamic'; // 이 페이지는 실시간으로 생성하도록 강제합니다.
 
@@ -66,6 +69,9 @@ export default function Week1Page() {
   const searchParams = useSearchParams()
   const projectId = searchParams.get('projectId') || ''
 
+  // 권한 검증
+  useProjectAccess(projectId)
+
   // Hooks
   const { loadStepData, saveStepData, submitStep, loading: storageLoading } = useWorkbookStorage(
     projectId
@@ -85,6 +91,9 @@ export default function Week1Page() {
     loadProjectInfo,
     updateProjectTitle,
     deleteProject,
+    updateTeamMembers,
+    hideProject,
+    unhideProject,
   } = useProjectSettings(projectId)
   const { generateSummary } = useProjectSummary()
 
@@ -249,8 +258,10 @@ export default function Week1Page() {
     })
   }, [registerProgressCalculator])
 
-  // Load data on mount
+  // Load data on mount and set up realtime subscription
   useEffect(() => {
+    const supabase = createClient()
+    
     const loadData = async () => {
       if (!projectId) return
 
@@ -275,6 +286,70 @@ export default function Week1Page() {
     }
 
     loadData()
+
+    // 실시간 업데이트를 위한 Supabase Realtime 구독
+    const channel = supabase
+      .channel(`project-steps-${projectId}-week1`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'project_steps',
+          filter: `project_id=eq.${projectId}&step_number=eq.1`,
+        },
+        async (payload) => {
+          console.log('Week 1 데이터 업데이트 감지:', payload)
+          // 데이터 다시 로드
+          const data = await loadStepData(1)
+          if (data) {
+            const week1Data = data as Week1Data
+            if (week1Data.problemLog) {
+              setProblemLog(week1Data.problemLog)
+            }
+            if (week1Data.promptStudio) {
+              setPromptStudio(week1Data.promptStudio)
+            }
+            if (week1Data.is_submitted !== undefined) {
+              setIsSubmitted(week1Data.is_submitted)
+            }
+          }
+          // Steps도 다시 로드
+          loadSteps()
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'project_steps',
+          filter: `project_id=eq.${projectId}&step_number=eq.1`,
+        },
+        async (payload) => {
+          console.log('Week 1 데이터 삽입 감지:', payload)
+          // 데이터 다시 로드
+          const data = await loadStepData(1)
+          if (data) {
+            const week1Data = data as Week1Data
+            if (week1Data.problemLog) {
+              setProblemLog(week1Data.problemLog)
+            }
+            if (week1Data.promptStudio) {
+              setPromptStudio(week1Data.promptStudio)
+            }
+            if (week1Data.is_submitted !== undefined) {
+              setIsSubmitted(week1Data.is_submitted)
+            }
+          }
+          loadSteps()
+        }
+      )
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
   }, [projectId, loadStepData, loadProjectInfo, loadSteps])
 
 
@@ -396,13 +471,20 @@ export default function Week1Page() {
     }
 
     const progress = calculateProgress()
-    const success = await saveStepData(1, week1Data, progress)
+    
+    try {
+      const success = await saveStepData(1, week1Data, progress)
 
-    if (success) {
-      setToastMessage('저장되었습니다.')
-      setToastVisible(true)
-      loadSteps()
-    } else {
+      if (success) {
+        setToastMessage('저장 완료!')
+        setToastVisible(true)
+        loadSteps()
+      } else {
+        setToastMessage('저장 중 오류가 발생했습니다.')
+        setToastVisible(true)
+      }
+    } catch (error: any) {
+      console.error('저장 오류:', error)
       setToastMessage('저장 중 오류가 발생했습니다.')
       setToastVisible(true)
     }
@@ -540,7 +622,7 @@ export default function Week1Page() {
         type={toastMessage.includes('오류') ? 'error' : 'success'}
       />
       <WorkbookHeader
-        title="Phase 1: Data - 1주차: 문제 발견과 목표 설정"
+        title="Phase 1: Data - 1회: 문제 발견과 목표 설정"
         description="일상 속 불편함을 발견하고, AI 프롬프트 작성 기초를 다집니다."
         phase="Phase 1: Data"
         isScrolled={isScrolled}
@@ -578,6 +660,32 @@ export default function Week1Page() {
         onTitleChange={setNewProjectTitle}
         onSave={handleUpdateProjectTitle}
         onDelete={handleDeleteProject}
+        isTeam={projectInfo?.is_team || false}
+        teamCode={projectInfo?.team_code || null}
+        memberEmails={projectInfo?.member_emails || []}
+        onUpdateTeamMembers={async (emails: string[]) => {
+          const success = await updateTeamMembers(emails)
+          if (success) {
+            await loadProjectInfo()
+          }
+          return success
+        }}
+        onHideProject={async () => {
+          const success = await hideProject()
+          if (success) {
+            await loadProjectInfo()
+          }
+          return success
+        }}
+        onUnhideProject={async () => {
+          const success = await unhideProject()
+          if (success) {
+            await loadProjectInfo()
+          }
+          return success
+        }}
+        isOwner={projectInfo?.is_owner || false}
+        isHidden={projectInfo?.is_hidden || false}
       />
 
       <ProjectSummaryModal
@@ -588,7 +696,7 @@ export default function Week1Page() {
       />
 
         {/* Main Content */}
-        <main className="flex-1">
+        <main className="flex-1 pb-16">
           <div className="container mx-auto px-6 py-8 max-w-7xl">
             {!projectId && (
               <div className="glass rounded-xl p-6 mb-8 border-l-4 border-indigo-600">
@@ -1079,18 +1187,12 @@ export default function Week1Page() {
               onSubmit={handleSubmit}
               themeColor="indigo"
             />
-
-            {isSubmitted && (
-              <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-xl">
-                <p className="text-sm text-blue-800 flex items-center gap-2">
-                  <Check className="w-4 h-4" />
-                  이 워크북은 제출되었습니다. 제출 회수 버튼을 눌러 수정할 수 있습니다.
-                </p>
-              </div>
-            )}
           </div>
         </main>
       </div>
+
+      {/* 하단 상태 바 */}
+      {projectId && <WorkbookStatusBar projectId={projectId} />}
     </div>
   )
 }

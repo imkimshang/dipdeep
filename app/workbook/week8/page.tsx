@@ -32,6 +32,8 @@ import { WorkbookFooter } from '@/components/workbook/WorkbookFooter'
 import { WorkbookNavigation } from '@/components/workbook/WorkbookNavigation'
 import { ProjectSettingsModal } from '@/components/workbook/ProjectSettingsModal'
 import { ProjectSummaryModal } from '@/components/workbook/ProjectSummaryModal'
+import { WorkbookStatusBar } from '@/components/WorkbookStatusBar'
+import { useProjectAccess } from '@/hooks/useProjectAccess'
 
 export const dynamic = 'force-dynamic'; // 이 페이지는 실시간으로 생성하도록 강제합니다.
 
@@ -108,6 +110,10 @@ const getCategoryLabel = (category: string) => {
 export default function Week8Page() {
   const router = useRouter()
   const searchParams = useSearchParams()
+  const projectId = searchParams.get('projectId') || ''
+
+  // 권한 검증
+  useProjectAccess(projectId)
   const projectId = searchParams.get('projectId') || ''
   const supabase = createClient()
 
@@ -735,7 +741,7 @@ ${formData.scopeData.technicalConstraints.trim() || '(입력 없음)'}
         />
 
         {/* Main Content */}
-        <main className="flex-1">
+        <main className="flex-1 pb-16">
           <div className="container mx-auto px-6 py-8 max-w-7xl">
             {/* Reference Data Panel */}
             {referenceData && (referenceData.iaTree.length > 0 || referenceData.keyScreens.length > 0) && (
@@ -1160,6 +1166,9 @@ ${formData.scopeData.technicalConstraints.trim() || '(입력 없음)'}
         onClose={() => setShowProjectSummary(false)}
         onCopy={handleCopySummary}
       />
+
+      {/* 하단 상태 바 */}
+      {projectId && <WorkbookStatusBar projectId={projectId} />}
     </div>
   )
 }

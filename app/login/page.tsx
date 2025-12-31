@@ -1,13 +1,23 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { createClient } from '@/utils/supabase/client'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { ArrowLeft, Mail, Lock } from 'lucide-react'
 
-export default function LoginPage() {
-  const [isLogin, setIsLogin] = useState(true)
+function LoginForm() {
+  const searchParams = useSearchParams()
+  const mode = searchParams.get('mode')
+  const [isLogin, setIsLogin] = useState(mode !== 'signup')
+  
+  useEffect(() => {
+    if (mode === 'signup') {
+      setIsLogin(false)
+    } else {
+      setIsLogin(true)
+    }
+  }, [mode])
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [fullName, setFullName] = useState('')
@@ -69,12 +79,42 @@ export default function LoginPage() {
         })
 
         if (error) {
+          console.error("가입 에러:", error)
+          
+          // Rate limit 오류 처리
+          if (error.message?.includes('seconds') || error.message?.includes('rate limit')) {
+            const waitTimeMatch = error.message.match(/(\d+)\s*seconds?/i)
+            const waitTime = waitTimeMatch ? waitTimeMatch[1] : '일부'
+            
+            alert(
+              `보안을 위해 잠시 후 다시 시도해주세요.\n\n` +
+              `잠시 기다렸다가 (약 ${waitTime}초 후) 다시 회원가입을 시도해주세요.`
+            )
+            setError(`잠시 후 다시 시도해주세요. (약 ${waitTime}초 대기 필요)`)
+            throw error
+          }
+          
+          // 일반 오류
+          setError("가입 에러: " + error.message)
           alert("가입 에러: " + error.message)
           throw error
         }
 
         // 2. 계정 생성 성공 시, 방금 생성된 유저 ID를 가지고 profiles 테이블에 추가 정보 저장
         if (data.user) {
+          // 세션이 완전히 설정될 때까지 잠시 대기
+          await new Promise((resolve) => setTimeout(resolve, 500))
+          
+          // 현재 세션 확인
+          const { data: sessionData, error: sessionError } = await supabase.auth.getSession()
+          
+          if (sessionError || !sessionData?.session) {
+            console.error('세션 확인 오류:', sessionError)
+            // 세션이 없어도 계속 진행 (RLS 정책이 auth.uid()를 사용하기 때문)
+            console.warn('세션이 아직 설정되지 않았지만 프로필 생성 시도')
+          }
+
+          // 프로필 생성 시도
           const { error: profileError } = await supabase
             .from('profiles')
             .insert({
@@ -85,16 +125,34 @@ export default function LoginPage() {
               experience: experience,
               role: 'student' as const, // 기본값으로 student 설정
               username: email.split('@')[0], // 이메일의 @ 앞부분을 username으로 사용
-              updated_at: new Date(),
+              updated_at: new Date().toISOString(),
             } as any)
 
           if (profileError) {
             console.error("프로필 저장 에러:", profileError)
-            alert("프로필 저장 중 오류가 발생했습니다: " + profileError.message)
+            console.error("에러 코드:", profileError.code)
+            console.error("에러 상세:", JSON.stringify(profileError, null, 2))
+            
+            // RLS 정책 오류인 경우 안내 메시지 표시
+            if (profileError.code === '42501' || profileError.code === 'PGRST301' || profileError.message?.includes('row-level security') || profileError.message?.includes('RLS')) {
+              alert(
+                "프로필 저장 권한 오류가 발생했습니다.\n\n" +
+                "Supabase SQL Editor에서 다음 파일을 실행해주세요:\n\n" +
+                "fix-profiles-rls-complete.sql\n\n" +
+                "또는 다음 SQL을 직접 실행:\n\n" +
+                "DROP POLICY IF EXISTS \"Users can insert own profile\" ON profiles;\n" +
+                "CREATE POLICY \"Users can insert own profile\"\n" +
+                "  ON profiles FOR INSERT\n" +
+                "  WITH CHECK (auth.uid() = id);"
+              )
+            } else {
+              alert("프로필 저장 중 오류가 발생했습니다: " + profileError.message)
+            }
             throw profileError
           } else {
             alert("회원가입이 완료되었습니다!")
-            router.push('/dashboard')
+            // 완전한 페이지 리로드를 통해 세션을 서버에 전달
+            window.location.href = '/dashboard'
           }
         }
       }
@@ -269,6 +327,21 @@ export default function LoginPage() {
         </div>
       </div>
     </div>
+  )
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">로딩 중...</p>
+        </div>
+      </div>
+    }>
+      <LoginForm />
+    </Suspense>
   )
 }
 

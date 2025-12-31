@@ -29,6 +29,8 @@ import { WorkbookFooter } from '@/components/workbook/WorkbookFooter'
 import { WorkbookNavigation } from '@/components/workbook/WorkbookNavigation'
 import { ProjectSettingsModal } from '@/components/workbook/ProjectSettingsModal'
 import { ProjectSummaryModal } from '@/components/workbook/ProjectSummaryModal'
+import { WorkbookStatusBar } from '@/components/WorkbookStatusBar'
+import { useProjectAccess } from '@/hooks/useProjectAccess'
 
 export const dynamic = 'force-dynamic'; // 이 페이지는 실시간으로 생성하도록 강제합니다.
 
@@ -78,6 +80,9 @@ export default function Week7Page() {
   const searchParams = useSearchParams()
   const projectId = searchParams.get('projectId') || ''
   const supabase = createClient()
+
+  // 권한 검증
+  useProjectAccess(projectId)
 
   // Hooks
   const { loadStepData, saveStepData, submitStep, loading: storageLoading } = useWorkbookStorage(
@@ -672,7 +677,7 @@ export default function Week7Page() {
         />
 
         {/* Main Content */}
-        <main className="flex-1">
+        <main className="flex-1 pb-16">
           <div className="container mx-auto px-6 py-8 max-w-7xl">
             {/* MVP 아이디어 참조 패널 */}
             {mvpIdeas.length > 0 && (
@@ -1108,6 +1113,9 @@ export default function Week7Page() {
         onClose={() => setShowProjectSummary(false)}
         onCopy={handleCopySummary}
       />
+
+      {/* 하단 상태 바 */}
+      {projectId && <WorkbookStatusBar projectId={projectId} />}
     </div>
   )
 }

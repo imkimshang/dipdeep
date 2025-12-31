@@ -422,13 +422,13 @@ export default function WorkbookWeekPage({
 
       // Generate summary prompt based on all week data
       let summary = `프로젝트명: ${projectInfo?.title || '미정'}\n\n`
-      summary += `=== 12주차 워크북 요약 ===\n\n`
+      summary += `=== 12회 워크북 요약 ===\n\n`
 
       steps.forEach((step: any) => {
         const weekNum = step.step_number
         const data = step.step_data as any
 
-        summary += `[${weekNum}주차]\n`
+        summary += `[${weekNum}회]\n`
         if (data) {
           // Week 1
           if (weekNum === 1 && data.problemLog) {
@@ -600,7 +600,7 @@ export default function WorkbookWeekPage({
                     isScrolled ? 'text-lg' : 'text-2xl'
                   }`}
                 >
-                  {weekNumber}주차 워크북
+                  {weekNumber}회 워크북
                 </h1>
               </div>
             </div>
@@ -732,7 +732,7 @@ export default function WorkbookWeekPage({
               </div>
             )}
 
-            <h3 className="text-xs font-semibold text-gray-700 mb-2">주차별 워크북</h3>
+            <h3 className="text-xs font-semibold text-gray-700 mb-2">회차별 워크북</h3>
             <div className="flex flex-col gap-1.5">
               {Array.from({ length: 12 }, (_, i) => i + 1).map((week) => {
                 const status = getStepStatus(week)
@@ -922,7 +922,7 @@ export default function WorkbookWeekPage({
             {/* Content Area */}
             <div className="glass rounded-2xl shadow-lg p-8 mb-8">
           <p className="text-gray-600 text-center py-8">
-            {weekNumber}주차 워크북 내용입니다.
+            {weekNumber}회 워크북 내용입니다.
             <br />
             <span className="text-sm text-gray-400">
               (이 페이지는 추후 구체적인 내용으로 업데이트될 예정입니다.)

@@ -1,14 +1,20 @@
 'use client'
 
 import Link from 'next/link'
-import { Settings, FileDown } from 'lucide-react'
+import { Settings, FileDown, Users, Copy } from 'lucide-react'
 import { StepStatus } from '@/hooks/useWorkbookNavigation'
 
 interface WorkbookNavigationProps {
   projectId: string
   currentWeek: number
   isScrolled: boolean
-  projectInfo: { title: string | null; id: string } | null
+  projectInfo: { 
+    title: string | null
+    id: string
+    is_team?: boolean
+    team_code?: string | null
+    member_emails?: string[]
+  } | null
   allSteps: any[]
   getWeekTitle: (week: number) => string
   getStepStatus: (week: number) => StepStatus
@@ -86,10 +92,49 @@ export function WorkbookNavigation({
                 <Settings className="w-4 h-4" />
               </button>
             </div>
+            {/* 팀 프로젝트 배지 및 코드 */}
+            {projectInfo.is_team && (
+              <div className="mt-2 flex items-center gap-2">
+                <span className="px-2.5 py-1 bg-purple-100 text-purple-700 text-xs font-medium rounded-full flex items-center gap-1.5">
+                  <Users className="w-3 h-3" />
+                  <span>팀</span>
+                  {projectInfo.team_code && (
+                    <>
+                      <span className="text-purple-600">(코드 -</span>
+                      <span className="font-mono font-bold">{projectInfo.team_code}</span>
+                      <span className="text-purple-600">)</span>
+                    </>
+                  )}
+                </span>
+                {projectInfo.team_code && (
+                  <button
+                    onClick={(e) => {
+                      e.preventDefault()
+                      e.stopPropagation()
+                      navigator.clipboard.writeText(projectInfo.team_code || '').then(() => {
+                        // 간단한 피드백 (Toast로 변경 가능)
+                        const btn = e.currentTarget
+                        const originalHTML = btn.innerHTML
+                        btn.innerHTML = '<svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>'
+                        setTimeout(() => {
+                          btn.innerHTML = originalHTML
+                        }, 1000)
+                      }).catch(() => {
+                        alert(`팀 코드: ${projectInfo.team_code}`)
+                      })
+                    }}
+                    className="p-1 text-purple-600 hover:text-purple-800 hover:bg-purple-50 rounded transition-colors"
+                    title="팀 코드 복사"
+                  >
+                    <Copy className="w-3 h-3" />
+                  </button>
+                )}
+              </div>
+            )}
           </div>
         )}
 
-        <h3 className="text-xs font-semibold text-gray-700 mb-2">주차별 워크북</h3>
+        <h3 className="text-xs font-semibold text-gray-700 mb-2">회차별 워크북</h3>
         <div className="flex flex-col gap-1.5">
           {Array.from({ length: 12 }, (_, i) => i + 1).map((week) => {
             const status = getStepStatus(week)

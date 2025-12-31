@@ -27,6 +27,8 @@ import { WorkbookFooter } from '@/components/workbook/WorkbookFooter'
 import { WorkbookNavigation } from '@/components/workbook/WorkbookNavigation'
 import { ProjectSettingsModal } from '@/components/workbook/ProjectSettingsModal'
 import { ProjectSummaryModal } from '@/components/workbook/ProjectSummaryModal'
+import { WorkbookStatusBar } from '@/components/WorkbookStatusBar'
+import { useProjectAccess } from '@/hooks/useProjectAccess'
 
 export const dynamic = 'force-dynamic'; // 이 페이지는 실시간으로 생성하도록 강제합니다.
 
@@ -79,7 +81,10 @@ const CHANGE_REASON_OPTIONS = [
 export default function Week12Page() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const projectId = searchParams.get('projectId')
+  const projectId = searchParams.get('projectId') || ''
+
+  // 권한 검증
+  useProjectAccess(projectId)
   const supabase = createClient()
 
   const [formData, setFormData] = useState<Week12Data>({
@@ -661,7 +666,7 @@ export default function Week12Page() {
           themeColor="indigo"
         />
 
-        <main className="flex-1 p-6 md:p-8 lg:p-12 max-w-5xl mx-auto">
+        <main className="flex-1 p-6 md:p-8 lg:p-12 max-w-5xl mx-auto pb-16">
           <div className="space-y-8">
             {/* Reference Data Panel */}
             {referenceData && (
@@ -1095,6 +1100,9 @@ export default function Week12Page() {
         onClose={() => setShowProjectSummary(false)}
         onCopy={handleCopySummary}
       />
+
+      {/* 하단 상태 바 */}
+      {projectId && <WorkbookStatusBar projectId={projectId} />}
     </div>
   )
 }

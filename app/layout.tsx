@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import { Suspense } from "react";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -15,9 +14,7 @@ export default function RootLayout({
   return (
     <html lang="ko">
       <body>
-        <Suspense fallback={<div>Loading...</div>}>
-          {children}
-        </Suspense>
+        {children}
       </body>
     </html>
   );

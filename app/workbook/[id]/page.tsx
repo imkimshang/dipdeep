@@ -96,7 +96,7 @@ export default async function WorkbookPage({
         {/* Week Navigation */}
         <div className="bg-white rounded-xl shadow-md p-6 mb-8">
           <h2 className="text-lg font-semibold text-gray-900 mb-4">
-            주차별 워크북
+            회차별 워크북
           </h2>
           <div className="grid grid-cols-6 md:grid-cols-12 gap-2">
             {Array.from({ length: 12 }, (_, i) => i + 1).map((week) => {
