@@ -114,7 +114,6 @@ export default function Week8Page() {
 
   // 권한 검증
   useProjectAccess(projectId)
-  const projectId = searchParams.get('projectId') || ''
   const supabase = createClient()
 
   // Hooks
