@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import {
   CheckCircle,
@@ -30,7 +30,7 @@ import { ProjectSummaryModal } from '@/components/workbook/ProjectSummaryModal'
 import { WorkbookStatusBar } from '@/components/WorkbookStatusBar'
 import { useProjectAccess } from '@/hooks/useProjectAccess'
 
-export const dynamic = 'force-dynamic'; // 이 페이지는 실시간으로 생성하도록 강제합니다.
+
 
 interface RequirementCheck {
   requirementId: string // RFP 요구사항 ID
@@ -78,7 +78,7 @@ const CHANGE_REASON_OPTIONS = [
   '법적/규제 이슈',
 ]
 
-export default function Week12Page() {
+function Week12PageContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const projectId = searchParams.get('projectId') || ''
@@ -1107,3 +1107,19 @@ export default function Week12Page() {
   )
 }
 
+
+
+export default function Week12Page() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">로딩 중...</p>
+        </div>
+      </div>
+    }>
+      <Week12PageContent />
+    </Suspense>
+  )
+}

@@ -30,7 +30,7 @@ import { ProjectSummaryModal } from '@/components/workbook/ProjectSummaryModal'
 import { WorkbookStatusBar } from '@/components/WorkbookStatusBar'
 import { useProjectAccess } from '@/hooks/useProjectAccess'
 
-export const dynamic = 'force-dynamic'; // 이 페이지는 실시간으로 생성하도록 강제합니다.
+
 
 interface RoutineItem {
   id: number
@@ -95,7 +95,7 @@ const getEmotionColor = (score: number): string => {
   return 'text-gray-600 bg-gray-50 border-gray-200'
 }
 
-export default function Week5Page() {
+function Week5PageContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const projectId = searchParams.get('projectId') || ''
@@ -1475,3 +1475,19 @@ export default function Week5Page() {
   )
 }
 
+
+
+export default function Week5Page() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">로딩 중...</p>
+        </div>
+      </div>
+    }>
+      <Week5PageContent />
+    </Suspense>
+  )
+}
