@@ -211,14 +211,14 @@ function ProjectCard({
       case 'event':
         return {
           icon: Calendar,
-          iconBg: 'bg-purple-100',
-          iconColor: 'text-purple-600',
-          iconHover: 'group-hover:bg-purple-200',
-          badgeBg: 'bg-purple-100',
-          badgeText: 'text-purple-700',
-          badgeBorder: 'border-purple-200',
-          hoverBorder: 'hover:border-purple-300',
-          titleHover: 'group-hover:text-purple-600',
+          iconBg: 'bg-orange-100',
+          iconColor: 'text-orange-600',
+          iconHover: 'group-hover:bg-orange-200',
+          badgeBg: 'bg-orange-100',
+          badgeText: 'text-orange-700',
+          badgeBorder: 'border-orange-200',
+          hoverBorder: 'hover:border-orange-300',
+          titleHover: 'group-hover:text-orange-600',
         }
       case 'webapp':
         return {
