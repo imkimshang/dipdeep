@@ -20,7 +20,7 @@ import { Toast } from '@/components/Toast'
 import { useWorkbookStorage } from '@/hooks/useWorkbookStorage'
 import { useWorkbookNavigation } from '@/hooks/useWorkbookNavigation'
 import { useProjectSettings } from '@/hooks/useProjectSettings'
-import { useProjectSummary } from '@/hooks/useProjectSummary'
+import { useProjectSummary, SummaryType } from '@/hooks/useProjectSummary'
 import { WorkbookHeader } from '@/components/workbook/WorkbookHeader'
 import { WorkbookSection } from '@/components/workbook/WorkbookSection'
 import { WorkbookFooter } from '@/components/workbook/WorkbookFooter'
@@ -126,6 +126,7 @@ function EventWeek1PageContent() {
   const [newProjectTitle, setNewProjectTitle] = useState('')
   const [showProjectSummary, setShowProjectSummary] = useState(false)
   const [summaryPrompt, setSummaryPrompt] = useState('')
+  const [summaryType, setSummaryType] = useState<SummaryType>('proposal')
   const [copied, setCopied] = useState(false)
   const [keywordInput, setKeywordInput] = useState('')
 
@@ -702,13 +703,30 @@ function EventWeek1PageContent() {
       return
     }
 
-    const summary = await generateSummary(projectId, projectInfo?.title || null)
+    // 기본값은 proposal로 설정
+    const summary = await generateSummary(projectId, projectInfo?.title || null, summaryType)
     if (summary) {
       setSummaryPrompt(summary)
       setShowProjectSummary(true)
     } else {
       setToastMessage('워크북 데이터가 없습니다.')
       setToastVisible(true)
+    }
+  }
+
+  // 요약 타입 변경 핸들러
+  const handleSummaryTypeChange = async (type: SummaryType) => {
+    setSummaryType(type)
+    if (type === 'proposal-create') {
+      // 추후 적용: AI API 연동
+      return
+    }
+    
+    if (projectId) {
+      const summary = await generateSummary(projectId, projectInfo?.title || null, type)
+      if (summary) {
+        setSummaryPrompt(summary)
+      }
     }
   }
 
@@ -824,6 +842,9 @@ function EventWeek1PageContent() {
           summaryPrompt={summaryPrompt}
           onClose={() => setShowProjectSummary(false)}
           onCopy={handleCopySummary}
+          onTypeChange={handleSummaryTypeChange}
+          summaryType={summaryType}
+          projectType={projectInfo?.type || null}
         />
 
         <main className="flex-1 pb-16">

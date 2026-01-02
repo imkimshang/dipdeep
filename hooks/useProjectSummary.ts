@@ -1,13 +1,16 @@
 import { useCallback } from 'react'
 import { createClient } from '@/utils/supabase/client'
 
+export type SummaryType = 'business-plan' | 'proposal' | 'proposal-create'
+
 export function useProjectSummary() {
   const supabase = createClient()
 
   const generateSummary = useCallback(
     async (
       projectId: string,
-      projectTitle: string | null
+      projectTitle: string | null,
+      summaryType: SummaryType = 'proposal'
     ): Promise<string | null> => {
       try {
         // 프로젝트 타입 확인
@@ -31,7 +34,15 @@ export function useProjectSummary() {
 
         // 이벤트 워크북인 경우
         if (projectType === 'event') {
-          return generateEventSummary(steps, projectTitle)
+          if (summaryType === 'business-plan') {
+            return generateEventBusinessPlan(steps, projectTitle)
+          } else if (summaryType === 'proposal') {
+            return generateEventProposal(steps, projectTitle)
+          } else if (summaryType === 'proposal-create') {
+            // 추후 적용: AI API 연동
+            return null
+          }
+          return generateEventProposal(steps, projectTitle)
         }
 
         // 서비스 기획 제안서 슬라이드 생성 프롬프트
@@ -408,17 +419,264 @@ export function useProjectSummary() {
   return { generateSummary }
 }
 
-// 이벤트 워크북용 요약 생성 함수
-function generateEventSummary(
+// 이벤트 워크북용 사업기획서 생성 함수 (1~4회차 기반)
+function generateEventBusinessPlan(
   steps: any[],
   projectTitle: string | null
 ): string {
-  let summary = `행사 기획서 생성 프롬프트\n\n`
-  summary += `[사용 방법]\n`
-  summary += `아래 전체 프롬프트를 NotebookLM, Genspark, Gamma, Pitch 등의 슬라이드 생성 서비스에 복사하여 붙여넣으세요.\n`
-  summary += `AI가 자동으로 전문적인 행사 기획서 슬라이드를 생성해줍니다.\n\n`
+  let summary = `행사 사업기획서 작성 프롬프트\n\n`
   summary += `[작업 지시]\n`
-  summary += `당신은 행사 기획 전문가입니다. 아래 제공된 프로젝트 데이터를 분석하여, 이해관계자에게 행사를 효과적으로 설명할 수 있는 기획서 슬라이드를 만들어주세요.\n\n`
+  summary += `당신은 행사 기획 전문가이자 비즈니스 문서 작성 전문가입니다. 아래 제공된 프로젝트 데이터(1~4회차)를 분석하여, 본격적인 사업기획에 앞서 전체적인 사업의 개요를 정리한 사업기획서를 작성해주세요.\n\n`
+  summary += `[사업기획서 작성 가이드라인]\n\n`
+  summary += `문체: 비즈니스 전문 용어를 사용하며, 명조체 문서에 어울리는 격식 있는 문체(~함, ~임 등 개조식과 서술식 혼용)로 작성할 것.\n\n`
+  summary += `분량: 출력 시 A4 용지 2~3장 분량이 나오도록 각 항목을 구체적으로 확장해서 서술할 것.\n\n`
+  summary += `구조: 아래 8단계 목차를 반드시 준수할 것.\n\n`
+  summary += `[목차 구조]\n\n`
+  summary += `1. 행사 개요: 목적과 배경을 설득력 있게 서술\n`
+  summary += `2. 기본 방향 및 컨셉: 타 행사와 차별화되는 핵심 전략 포함\n`
+  summary += `3. 세부 실행 계획: 시간대별 큐시트나 공간 배치안을 텍스트로 상세히 묘사\n`
+  summary += `4. 운영 및 인력 계획: 구체적인 R&R과 시스템 사양 제안\n`
+  summary += `5. 홍보 및 마케팅: 채널별 상세 로드맵 제시\n`
+  summary += `6. 예산 계획: 항목별 예상 비용을 표(Table) 형태로 구성\n`
+  summary += `7. 안전 및 리스크 관리: 실효성 있는 대응 매뉴얼 작성\n`
+  summary += `8. 기대 효과: 정량적/정성적 성과 예측\n\n`
+  summary += `[작성 시 주의사항]\n\n`
+  summary += `- 각 섹션은 전문적이고 논리적으로 작성하며, 구체적인 데이터와 수치를 포함해주세요.\n`
+  summary += `- 비즈니스 전문 용어를 적절히 사용하고, 격식 있는 문체를 유지해주세요.\n`
+  summary += `- 개조식(~함, ~임)과 서술식을 적절히 혼용하여 가독성을 높여주세요.\n`
+  summary += `- 입력되지 않은 항목은 무시하고, 입력된 데이터만 기반으로 작성하세요.\n`
+  summary += `- 예산 계획 섹션은 반드시 표(Table) 형태로 작성해주세요.\n\n`
+  summary += `프로젝트명: ${projectTitle || '미정'}\n\n`
+  summary += `[프로젝트 데이터 (1~4회차)]\n\n`
+
+  // 1~4회차 데이터만 추출
+  let hasData = false
+
+  steps.forEach((step: any) => {
+    const weekNum = step.step_number
+    const data = step.step_data as any
+
+    if (!data || weekNum > 4) return
+
+    let weekSummary = ''
+    let weekHasData = false
+
+    if (weekNum === 1 && data.eventCriteria) {
+      weekSummary += `[1회차: 행사 방향성 설정 및 트렌드 헌팅]\n`
+      
+      if (data.eventCriteria?.type) {
+        weekSummary += `행사 유형: ${data.eventCriteria.type}\n`
+        weekHasData = true
+      }
+      
+      if (data.eventCriteria?.goals && Array.isArray(data.eventCriteria.goals) && data.eventCriteria.goals.length > 0) {
+        weekSummary += `핵심 목적: ${data.eventCriteria.goals.join(', ')}\n`
+        weekHasData = true
+      }
+      
+      if (data.keywords && Array.isArray(data.keywords) && data.keywords.length > 0) {
+        weekSummary += `관심 키워드: ${data.keywords.join(', ')}\n`
+        weekHasData = true
+      }
+      
+      if (data.trendLogs && Array.isArray(data.trendLogs) && data.trendLogs.length > 0) {
+        weekSummary += `트렌드 데이터 (${data.trendLogs.length}건):\n`
+        data.trendLogs.forEach((log: any, idx: number) => {
+          if (log.platform || log.keyword) {
+            weekSummary += `  ${idx + 1}. ${log.platform || ''}: ${log.keyword || ''}`
+            if (log.volume) weekSummary += ` (볼륨: ${log.volume})`
+            weekSummary += `\n`
+            if (log.insight) weekSummary += `     인사이트: ${log.insight}\n`
+            weekHasData = true
+          }
+        })
+      }
+      
+      if (data.insightResult && data.insightResult.trim()) {
+        weekSummary += `트렌드 분석 리포트:\n${data.insightResult}\n`
+        weekHasData = true
+      }
+    } else if (weekNum === 2 && data.personas) {
+      weekSummary += `[2회차: 타겟 페르소나]\n`
+      
+      if (data.personas && Array.isArray(data.personas) && data.personas.length > 0) {
+        weekSummary += `방문객 페르소나 (${data.personas.length}명):\n`
+        data.personas.forEach((persona: any, idx: number) => {
+          if (persona.profile?.name || persona.profile?.age || persona.profile?.job) {
+            weekSummary += `  ${idx + 1}. ${persona.profile?.name || '이름없음'}`
+            if (persona.profile?.age) weekSummary += ` (${persona.profile.age}세)`
+            if (persona.profile?.job) weekSummary += ` - ${persona.profile.job}`
+            weekSummary += `\n`
+            
+            if (persona.profile?.lifestyleTags && Array.isArray(persona.profile.lifestyleTags) && persona.profile.lifestyleTags.length > 0) {
+              weekSummary += `     라이프스타일: ${persona.profile.lifestyleTags.join(', ')}\n`
+            }
+            
+            if (persona.profile?.visitMotivation && Array.isArray(persona.profile.visitMotivation) && persona.profile.visitMotivation.length > 0) {
+              weekSummary += `     방문 동기: ${persona.profile.visitMotivation.join(', ')}\n`
+            }
+            
+            if (persona.behaviorPattern) {
+              const bp = persona.behaviorPattern
+              if (bp.goodsPurchase !== undefined) weekSummary += `     굿즈 구매 성향: ${bp.goodsPurchase}%\n`
+              if (bp.photoZonePreference !== undefined) weekSummary += `     포토존 선호도: ${bp.photoZonePreference}%\n`
+              if (bp.stayDuration !== undefined) weekSummary += `     체류 시간: ${bp.stayDuration}%\n`
+              if (bp.companionType !== undefined) weekSummary += `     동반인 유형: ${bp.companionType}%\n`
+            }
+            
+            if (persona.behaviorScenario) {
+              if (persona.behaviorScenario.before?.trim()) {
+                weekSummary += `     방문 전: ${persona.behaviorScenario.before}\n`
+              }
+              if (persona.behaviorScenario.during?.trim()) {
+                weekSummary += `     방문 중: ${persona.behaviorScenario.during}\n`
+              }
+              if (persona.behaviorScenario.after?.trim()) {
+                weekSummary += `     방문 후: ${persona.behaviorScenario.after}\n`
+              }
+            }
+            weekHasData = true
+          }
+        })
+      }
+    } else if (weekNum === 3 && (data.references || data.swot)) {
+      weekSummary += `[3회차: 레퍼런스 벤치마킹 및 정량 분석]\n`
+      
+      if (data.references && Array.isArray(data.references) && data.references.length > 0) {
+        weekSummary += `레퍼런스 행사 (${data.references.length}건):\n`
+        data.references.forEach((ref: any, idx: number) => {
+          if (ref.name) {
+            weekSummary += `  ${idx + 1}. ${ref.name}\n`
+            if (ref.coreGoal) weekSummary += `     핵심 목표: ${ref.coreGoal}\n`
+            if (ref.budget) weekSummary += `     예산: ${ref.budget}만원\n`
+            if (ref.duration) weekSummary += `     기간: ${ref.duration}일\n`
+            if (ref.officialVisitors) weekSummary += `     공개 방문객 수: ${ref.officialVisitors}명\n`
+            if (ref.estimatedVisitors) weekSummary += `     예상 방문객 수: ${ref.estimatedVisitors}명\n`
+            if (ref.pros?.trim()) weekSummary += `     배울 점: ${ref.pros}\n`
+            if (ref.cons?.trim()) weekSummary += `     아쉬운 점: ${ref.cons}\n`
+            weekHasData = true
+          }
+        })
+      }
+      
+      if (data.swot) {
+        const swot = data.swot
+        if (swot.strength?.trim() || swot.weakness?.trim() || swot.opportunity?.trim() || swot.threat?.trim()) {
+          weekSummary += `SWOT 분석:\n`
+          if (swot.strength?.trim()) weekSummary += `  강점(S): ${swot.strength}\n`
+          if (swot.weakness?.trim()) weekSummary += `  약점(W): ${swot.weakness}\n`
+          if (swot.opportunity?.trim()) weekSummary += `  기회(O): ${swot.opportunity}\n`
+          if (swot.threat?.trim()) weekSummary += `  위협(T): ${swot.threat}\n`
+          weekHasData = true
+        }
+      }
+    } else if (weekNum === 4 && (data.basicInfo || data.kpi || data.venue)) {
+      weekSummary += `[4회차: 행사 개요 및 환경 분석]\n`
+      
+      if (data.basicInfo) {
+        const bi = data.basicInfo
+        if (bi.eventName?.trim()) {
+          weekSummary += `행사명: ${bi.eventName}\n`
+          weekHasData = true
+        }
+        if (bi.concept?.trim()) {
+          weekSummary += `한 줄 컨셉: ${bi.concept}\n`
+          weekHasData = true
+        }
+        if (bi.startDate && bi.endDate) {
+          weekSummary += `기간: ${bi.startDate} ~ ${bi.endDate}\n`
+          weekHasData = true
+        }
+        if (bi.operatingHours?.trim()) {
+          weekSummary += `운영 시간: ${bi.operatingHours}\n`
+          weekHasData = true
+        }
+      }
+      
+      if (data.kpi) {
+        const kpi = data.kpi
+        if (kpi.targetVisitors?.trim() || kpi.targetRevenue?.trim() || kpi.targetViral?.trim() || kpi.expectedEffect?.trim()) {
+          weekSummary += `KPI 목표:\n`
+          if (kpi.targetVisitors?.trim()) weekSummary += `  목표 방문객: ${kpi.targetVisitors}명\n`
+          if (kpi.targetRevenue?.trim()) weekSummary += `  목표 매출: ${kpi.targetRevenue}만원\n`
+          if (kpi.targetViral?.trim()) weekSummary += `  바이럴 목표: ${kpi.targetViral}\n`
+          if (kpi.expectedEffect?.trim()) weekSummary += `  기대 효과: ${kpi.expectedEffect}\n`
+          weekHasData = true
+        }
+      }
+      
+      if (data.venue) {
+        const venue = data.venue
+        if (venue.type || venue.area || venue.capacity || venue.budgetCap) {
+          weekSummary += `장소 정보:\n`
+          if (venue.type) weekSummary += `  공간 타입: ${venue.type}\n`
+          if (venue.area) weekSummary += `  규모: ${venue.area}평\n`
+          if (venue.capacity) weekSummary += `  수용 인원: ${venue.capacity}명\n`
+          if (venue.budgetCap) weekSummary += `  총 예산: ${venue.budgetCap}만원\n`
+          if (venue.constraints && Array.isArray(venue.constraints) && venue.constraints.length > 0) {
+            weekSummary += `  물리적 제약: ${venue.constraints.join(', ')}\n`
+          }
+          weekHasData = true
+        }
+      }
+    }
+
+    if (weekHasData) {
+      summary += weekSummary + `\n`
+      hasData = true
+    }
+  })
+
+  if (!hasData) {
+    summary += `입력된 데이터가 없습니다.\n`
+  }
+
+  summary += `\n[최종 지시사항]\n\n`
+  summary += `위 데이터를 바탕으로 다음 8단계 목차 구조를 준수하여 전문적인 사업기획서를 작성해주세요:\n\n`
+  summary += `1. 행사 개요\n`
+  summary += `   - 1회차 데이터(행사 유형, 핵심 목적, 트렌드 분석)를 활용하여 목적과 배경을 설득력 있게 서술\n`
+  summary += `   - 행사의 필요성과 기대 효과를 명확히 제시\n\n`
+  summary += `2. 기본 방향 및 컨셉\n`
+  summary += `   - 4회차 데이터(행사명, 한 줄 컨셉)를 기반으로 핵심 컨셉 설명\n`
+  summary += `   - 3회차 데이터(SWOT 분석, 레퍼런스 비교)를 활용하여 타 행사와의 차별화 포인트 제시\n\n`
+  summary += `3. 세부 실행 계획\n`
+  summary += `   - 4회차 데이터(기간, 운영 시간, 장소 정보)를 활용하여 시간대별/공간별 계획 상세 묘사\n`
+  summary += `   - 구체적인 프로그램 흐름과 공간 배치를 텍스트로 설명\n\n`
+  summary += `4. 운영 및 인력 계획\n`
+  summary += `   - 행사 운영에 필요한 인력 규모와 역할(R&R) 정의\n`
+  summary += `   - 필요한 시스템 및 장비 사양 제안\n\n`
+  summary += `5. 홍보 및 마케팅\n`
+  summary += `   - 1회차 트렌드 데이터와 4회차 바이럴 목표를 활용\n`
+  summary += `   - 채널별(소셜미디어, 온라인, 오프라인 등) 상세 로드맵 제시\n\n`
+  summary += `6. 예산 계획\n`
+  summary += `   - 4회차 예산 데이터를 활용하여 항목별 예상 비용을 표(Table) 형태로 구성\n`
+  summary += `   - 대분류(대관료, 제작비, 인건비 등)와 소분류 항목으로 체계화\n\n`
+  summary += `7. 안전 및 리스크 관리\n`
+  summary += `   - 4회차 물리적 제약사항을 반영한 안전 관리 방안\n`
+  summary += `   - 예상 리스크와 대응 매뉴얼 작성 (안전사고, 날씨, 인력 부족 등)\n\n`
+  summary += `8. 기대 효과\n`
+  summary += `   - 4회차 KPI 목표(목표 방문객, 목표 매출, 기대 효과)를 활용\n`
+  summary += `   - 정량적 지표와 정성적 성과를 모두 예측하여 제시\n\n`
+  summary += `[문서 작성 형식]\n`
+  summary += `- Word 문서 스타일로 작성\n`
+  summary += `- A4 용지 2~3장 분량 (출력 기준)\n`
+  summary += `- 명조체에 어울리는 격식 있는 문체(~함, ~임 등 개조식과 서술식 혼용)\n`
+  summary += `- 비즈니스 전문 용어 사용\n`
+  summary += `- 예산 계획은 반드시 표(Table) 형태로 작성\n\n`
+  summary += `위 데이터를 분석하여 8단계 목차 구조를 준수한 전문적인 행사 사업기획서를 작성해주세요.`
+
+  return summary
+}
+
+// 이벤트 워크북용 제안서 생성 함수 (전체 회차 기반, PPT 형태)
+function generateEventProposal(
+  steps: any[],
+  projectTitle: string | null
+): string {
+  let summary = `행사 제안서 생성 프롬프트\n\n`
+  summary += `[작업 지시]\n`
+  summary += `당신은 행사 기획 전문가입니다. 아래 제공된 프로젝트 데이터를 분석하여, 이해관계자에게 행사를 효과적으로 설명할 수 있는 제안서 슬라이드(PPT 형태)를 만들어주세요.\n`
+  summary += `사업기획서를 기반으로 구체적인 실행 방안을 담은 제안서 형식으로 작성해주세요.\n\n`
   summary += `각 슬라이드는 다음 형식으로 구성해주세요:\n`
   summary += `- 슬라이드 제목 (명확하고 간결하게)\n`
   summary += `- 핵심 내용 (불릿 포인트 또는 간단한 문단)\n`
@@ -1067,15 +1325,16 @@ function generateEventSummary(
 
   summary += `\n[최종 지시사항]\n\n`
   summary += `위 데이터를 바탕으로 다음을 수행해주세요:\n\n`
-  summary += `1. 입력된 데이터만을 기반으로 행사 기획서 슬라이드를 생성하세요.\n`
+  summary += `1. 입력된 데이터만을 기반으로 행사 제안서 슬라이드를 생성하세요.\n`
   summary += `2. 각 회차별 핵심 내용을 요약하여 슬라이드에 배치하세요.\n`
   summary += `3. 데이터 간의 논리적 흐름을 파악하여 스토리텔링 구조를 만드세요.\n`
-  summary += `   (예: 행사 목적 → 타겟 분석 → 레퍼런스 벤치마킹 → 행사 개요 → 세계관 → 여정 설계 → 콘텐츠 기획 → 마스터 플랜 → 브랜딩)\n`
+  summary += `   (예: 행사 목적 → 타겟 분석 → 레퍼런스 벤치마킹 → 행사 개요 → 세계관 → 여정 설계 → 콘텐츠 기획 → 마스터 플랜 → 브랜딩 → 실행 계획 → 최종 제안)\n`
   summary += `4. 각 슬라이드에 제목, 핵심 내용(불릿 포인트), 그리고 필요한 경우 시각화 제안을 포함하세요.\n`
   summary += `5. 구체적인 수치, 통계, 목표 등을 적극 활용하여 신뢰성을 높이세요.\n`
   summary += `6. 전문적이지만 이해하기 쉬운 문체를 사용하세요.\n`
-  summary += `7. 입력되지 않은 항목은 무시하고, 입력된 데이터만 기반으로 슬라이드를 구성하세요.\n\n`
-  summary += `위 데이터를 분석하여 행사 기획서 슬라이드를 생성해주세요.`
+  summary += `7. 입력되지 않은 항목은 무시하고, 입력된 데이터만 기반으로 슬라이드를 구성하세요.\n`
+  summary += `8. 사업기획서를 기반으로 구체적인 실행 방안을 담은 제안서 형식으로 작성하세요.\n\n`
+  summary += `위 데이터를 분석하여 행사 제안서 슬라이드를 생성해주세요.`
 
   return summary
 }
