@@ -11,6 +11,7 @@ interface WorkbookNavigationProps {
   projectInfo: { 
     title: string | null
     id: string
+    type?: string | null
     is_team?: boolean
     team_code?: string | null
     member_emails?: string[]
@@ -79,14 +80,14 @@ export function WorkbookNavigation({
       <div className="p-3">
         {/* Project Info */}
         {projectInfo && (
-          <div className="mb-4 pb-4 border-b border-gray-200">
+          <div className="mb-4 pb-4 border-b-2 border-blue-600/50 bg-gradient-to-br from-blue-600 to-indigo-700 rounded-lg p-3 shadow-lg">
             <div className="flex items-center justify-between mb-2">
-              <h4 className="text-sm font-semibold text-gray-900 truncate flex-1">
+              <h4 className="text-sm font-semibold text-white truncate flex-1">
                 {projectInfo.title || '프로젝트명 없음'}
               </h4>
               <button
                 onClick={onSettingsClick}
-                className={`flex-shrink-0 p-1.5 text-gray-500 ${colors.button} rounded-lg transition-colors`}
+                className={`flex-shrink-0 p-1.5 text-gray-300 hover:text-white ${colors.button} rounded-lg transition-colors`}
                 title="설정"
               >
                 <Settings className="w-4 h-4" />
@@ -95,14 +96,14 @@ export function WorkbookNavigation({
             {/* 팀 프로젝트 배지 및 코드 */}
             {projectInfo.is_team && (
               <div className="mt-2 flex items-center gap-2">
-                <span className="px-2.5 py-1 bg-purple-100 text-purple-700 text-xs font-medium rounded-full flex items-center gap-1.5">
+                <span className="px-2.5 py-1 bg-purple-500/30 text-purple-200 text-xs font-medium rounded-full flex items-center gap-1.5 border border-purple-400/50">
                   <Users className="w-3 h-3" />
                   <span>팀</span>
                   {projectInfo.team_code && (
                     <>
-                      <span className="text-purple-600">(코드 -</span>
+                      <span className="text-purple-300">(코드 -</span>
                       <span className="font-mono font-bold">{projectInfo.team_code}</span>
-                      <span className="text-purple-600">)</span>
+                      <span className="text-purple-300">)</span>
                     </>
                   )}
                 </span>
@@ -123,7 +124,7 @@ export function WorkbookNavigation({
                         alert(`팀 코드: ${projectInfo.team_code}`)
                       })
                     }}
-                    className="p-1 text-purple-600 hover:text-purple-800 hover:bg-purple-50 rounded transition-colors"
+                    className="p-1 text-purple-300 hover:text-purple-100 hover:bg-purple-500/20 rounded transition-colors"
                     title="팀 코드 복사"
                   >
                     <Copy className="w-3 h-3" />
@@ -139,6 +140,17 @@ export function WorkbookNavigation({
           {Array.from({ length: 12 }, (_, i) => i + 1).map((week) => {
             const status = getStepStatus(week)
             const isCurrentWeek = week === currentWeek
+            
+            // 프로젝트 타입에 따른 경로 결정
+            const projectType = projectInfo?.type || 'webapp'
+            let weekPath: string
+            if (projectType === 'event') {
+              weekPath = `/workbook-event/week${week}`
+            } else if (projectType === 'product') {
+              weekPath = `/workbook-product/week${week}`
+            } else {
+              weekPath = `/workbook/week${week}`
+            }
             
             // 상태 결정: 완료 > 진행중 > 시작전
             let statusType: 'notStarted' | 'inProgress' | 'completed'
@@ -166,7 +178,7 @@ export function WorkbookNavigation({
             return (
               <Link
                 key={week}
-                href={`/workbook/week${week}?projectId=${projectId}`}
+                href={`${weekPath}?projectId=${projectId}`}
                 className={`flex items-center gap-2 p-2 rounded-lg transition-all duration-200 group border ${
                   isCurrentWeek
                     ? `${colors.current} font-semibold border-2`

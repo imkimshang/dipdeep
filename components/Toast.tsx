@@ -23,19 +23,19 @@ export function Toast({ message, isVisible, onClose, type = 'success' }: ToastPr
   if (!isVisible) return null
 
   return (
-    <div className="fixed top-4 right-4 z-50 animate-in slide-in-from-top-5">
+    <div className="fixed top-4 right-4 z-[9999] animate-slide-in">
       <div
-        className={`flex items-center gap-3 px-4 py-3 rounded-xl shadow-lg backdrop-blur-xl border ${
+        className={`flex items-center gap-3 px-4 py-3 rounded-xl shadow-lg backdrop-blur-xl border min-w-[300px] ${
           type === 'success'
-            ? 'bg-green-50/90 border-green-200 text-green-800'
-            : 'bg-red-50/90 border-red-200 text-red-800'
+            ? 'bg-green-50/95 border-green-200 text-green-800'
+            : 'bg-red-50/95 border-red-200 text-red-800'
         }`}
       >
-        <CheckCircle2 className="w-5 h-5" />
-        <span className="font-medium text-sm">{message}</span>
+        <CheckCircle2 className="w-5 h-5 flex-shrink-0" />
+        <span className="font-medium text-sm flex-1">{message}</span>
         <button
           onClick={onClose}
-          className="ml-2 hover:opacity-70 transition-opacity"
+          className="ml-2 hover:opacity-70 transition-opacity flex-shrink-0"
         >
           <X className="w-4 h-4" />
         </button>

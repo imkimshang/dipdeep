@@ -68,7 +68,9 @@ export default async function WorkbookPage({
           <p className="text-gray-600 mt-1">
             {project.type && (
               <span className="px-2 py-1 bg-indigo-100 text-indigo-700 text-sm rounded mr-2">
-                {project.type}
+                {project.type === 'webapp' ? '웹 애플리케이션' : 
+                 project.type === 'event' ? '행사/이벤트' : 
+                 project.type === 'product' ? '제품' : project.type}
               </span>
             )}
             진행 단계: {project.current_step || 0}/12

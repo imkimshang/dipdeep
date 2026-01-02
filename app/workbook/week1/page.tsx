@@ -256,6 +256,35 @@ function Week1PageContent() {
     })
   }, [registerProgressCalculator])
 
+  // 프로젝트 타입 확인 및 리다이렉트
+  useEffect(() => {
+    const checkProjectType = async () => {
+      if (!projectId) return
+      
+      const supabase = createClient()
+      try {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser()
+        if (!user) return
+
+        const { data: project } = await supabase
+          .from('projects')
+          .select('type')
+          .eq('id', projectId)
+          .single()
+
+        if (project && (project as any).type === 'event') {
+          router.push(`/workbook-event/week1?projectId=${projectId}`)
+        }
+      } catch (error) {
+        console.error('프로젝트 타입 확인 오류:', error)
+      }
+    }
+    
+    checkProjectType()
+  }, [projectId, router])
+
   // Load data on mount and set up realtime subscription
   useEffect(() => {
     const supabase = createClient()

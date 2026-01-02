@@ -8,6 +8,7 @@ export function useProjectSettings(projectId: string) {
   const [projectInfo, setProjectInfo] = useState<{ 
     title: string | null
     id: string
+    type?: string | null
     is_team?: boolean
     team_code?: string | null
     member_emails?: string[]
@@ -28,7 +29,7 @@ export function useProjectSettings(projectId: string) {
       // 프로젝트 정보 조회 (작성자 또는 팀원 모두 가능)
       const { data: project } = await supabase
         .from('projects')
-        .select('title, id, is_team, team_code, member_emails, user_id, is_hidden')
+        .select('title, id, type, is_team, team_code, member_emails, user_id, is_hidden')
         .eq('id', projectId)
         .single()
 
@@ -46,6 +47,7 @@ export function useProjectSettings(projectId: string) {
         const proj = project as { 
           title: string | null
           id: string
+          type?: string | null
           is_team?: boolean
           team_code?: string | null
           member_emails?: string[]
@@ -55,6 +57,7 @@ export function useProjectSettings(projectId: string) {
         setProjectInfo({ 
           title: proj.title, 
           id: proj.id,
+          type: (project as any).type || null,
           is_team: proj.is_team || false,
           team_code: proj.team_code || null,
           member_emails: proj.member_emails || [],

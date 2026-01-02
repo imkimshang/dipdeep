@@ -88,8 +88,13 @@ export default function NewProjectPage() {
         alert('프로젝트가 성공적으로 생성되었습니다!')
       }
       
-      // Redirect to week1 workbook with project ID
-      router.push(`/workbook/week1?projectId=${(project as any).id}`)
+      // Redirect to week1 workbook with project ID (프로젝트 타입에 따라 다른 경로)
+      const projectType = formData.type
+      if (projectType === 'event') {
+        router.push(`/workbook-event/week1?projectId=${(project as any).id}`)
+      } else {
+        router.push(`/workbook/week1?projectId=${(project as any).id}`)
+      }
     } catch (error: any) {
       console.error('프로젝트 생성 실패:', error)
       
@@ -164,7 +169,7 @@ export default function NewProjectPage() {
                 className="input-field"
               >
                 <option value="webapp">웹 애플리케이션</option>
-                <option value="story">스토리</option>
+                <option value="event">행사/이벤트</option>
                 <option value="product">제품</option>
               </select>
             </div>

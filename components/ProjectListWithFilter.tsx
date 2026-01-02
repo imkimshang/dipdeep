@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { BookOpen, Users, Rocket, CheckSquare } from 'lucide-react'
+import { BookOpen, Users, Rocket, CheckSquare, Calendar, Code, Package } from 'lucide-react'
 import { DashboardHiddenProjectsToggle } from '@/components/DashboardHiddenProjectsToggle'
 import { UnhideProjectButton } from '@/components/UnhideProjectButton'
 import { createClient } from '@/utils/supabase/client'
@@ -205,11 +205,82 @@ function ProjectCard({
   project: ProjectWithProgress
   isHidden?: boolean
 }) {
+  // 프로젝트 타입별 설정
+  const getProjectTypeConfig = () => {
+    switch (project.type) {
+      case 'event':
+        return {
+          icon: Calendar,
+          iconBg: 'bg-purple-100',
+          iconColor: 'text-purple-600',
+          iconHover: 'group-hover:bg-purple-200',
+          badgeBg: 'bg-purple-100',
+          badgeText: 'text-purple-700',
+          badgeBorder: 'border-purple-200',
+          hoverBorder: 'hover:border-purple-300',
+          titleHover: 'group-hover:text-purple-600',
+        }
+      case 'webapp':
+        return {
+          icon: Code,
+          iconBg: 'bg-indigo-100',
+          iconColor: 'text-indigo-600',
+          iconHover: 'group-hover:bg-indigo-200',
+          badgeBg: 'bg-indigo-100',
+          badgeText: 'text-indigo-700',
+          badgeBorder: 'border-indigo-200',
+          hoverBorder: 'hover:border-indigo-300',
+          titleHover: 'group-hover:text-indigo-600',
+        }
+      case 'product':
+        return {
+          icon: Package,
+          iconBg: 'bg-emerald-100',
+          iconColor: 'text-emerald-600',
+          iconHover: 'group-hover:bg-emerald-200',
+          badgeBg: 'bg-emerald-100',
+          badgeText: 'text-emerald-700',
+          badgeBorder: 'border-emerald-200',
+          hoverBorder: 'hover:border-emerald-300',
+          titleHover: 'group-hover:text-emerald-600',
+        }
+      default:
+        return {
+          icon: BookOpen,
+          iconBg: 'bg-gray-100',
+          iconColor: 'text-gray-600',
+          iconHover: 'group-hover:bg-gray-200',
+          badgeBg: 'bg-gray-100',
+          badgeText: 'text-gray-700',
+          badgeBorder: 'border-gray-200',
+          hoverBorder: 'hover:border-gray-300',
+          titleHover: 'group-hover:text-gray-600',
+        }
+    }
+  }
+
+  const typeConfig = getProjectTypeConfig()
+  const IconComponent = typeConfig.icon
+
+  // 프로젝트 타입별 링크 경로
+  const getWorkbookLink = () => {
+    switch (project.type) {
+      case 'event':
+        return `/workbook-event/week1?projectId=${project.id}`
+      case 'webapp':
+        return `/workbook/week1?projectId=${project.id}`
+      case 'product':
+        return `/workbook-product/week1?projectId=${project.id}`
+      default:
+        return `/workbook/week1?projectId=${project.id}`
+    }
+  }
+
   return (
     <Link
-      href={`/workbook/week1?projectId=${project.id}`}
-      className={`card card-hover p-6 group flex items-center justify-between gap-6 border-2 rounded-xl hover:border-indigo-300 transition-colors ${
-        isHidden ? 'border-gray-300 bg-gray-50/50' : 'border-gray-200'
+      href={getWorkbookLink()}
+      className={`card card-hover p-6 group flex items-center justify-between gap-6 border-2 rounded-xl transition-colors ${
+        isHidden ? 'border-gray-300 bg-gray-50/50' : `border-gray-200 ${typeConfig.hoverBorder}`
       }`}
     >
       {/* Left: Project Info */}
@@ -217,11 +288,17 @@ function ProjectCard({
         <div className="flex items-start justify-between mb-4">
           <div className="flex items-center gap-4">
             <div
-              className={`w-12 h-12 rounded-2xl flex items-center justify-center group-hover:bg-indigo-200 transition-colors flex-shrink-0 ${
-                isHidden ? 'bg-gray-200' : 'bg-indigo-100'
+              className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-colors flex-shrink-0 ${
+                isHidden
+                  ? 'bg-gray-200'
+                  : `${typeConfig.iconBg} ${typeConfig.iconHover}`
               }`}
             >
-              <BookOpen className={`w-6 h-6 ${isHidden ? 'text-gray-400' : 'text-indigo-600'}`} />
+              <IconComponent
+                className={`w-6 h-6 ${
+                  isHidden ? 'text-gray-400' : typeConfig.iconColor
+                }`}
+              />
             </div>
             <div>
               <div className="flex items-center gap-2 mb-1">
@@ -229,7 +306,7 @@ function ProjectCard({
                   className={`font-semibold mb-1 text-lg tracking-tight transition-colors ${
                     isHidden
                       ? 'text-gray-500'
-                      : 'text-gray-900 group-hover:text-indigo-600'
+                      : `text-gray-900 ${typeConfig.titleHover}`
                   }`}
                 >
                   {project.title || '제목 없음'}
@@ -254,11 +331,14 @@ function ProjectCard({
                 )}
               </div>
               <div className="flex items-center gap-3 flex-wrap">
-                <span className="px-3 py-1 bg-gray-100 text-gray-700 text-xs font-medium rounded-full">
+                <span
+                  className={`px-3 py-1 ${typeConfig.badgeBg} ${typeConfig.badgeText} border ${typeConfig.badgeBorder} text-xs font-medium rounded-full flex items-center gap-1.5`}
+                >
+                  <IconComponent className="w-3 h-3" />
                   {project.type === 'webapp'
                     ? '웹 애플리케이션'
-                    : project.type === 'story'
-                    ? '스토리'
+                    : project.type === 'event'
+                    ? '행사/이벤트'
                     : project.type === 'product'
                     ? '제품'
                     : project.type || '일반'}
