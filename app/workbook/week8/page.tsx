@@ -34,8 +34,7 @@ import { ProjectSettingsModal } from '@/components/workbook/ProjectSettingsModal
 import { ProjectSummaryModal } from '@/components/workbook/ProjectSummaryModal'
 import { WorkbookStatusBar } from '@/components/WorkbookStatusBar'
 import { useProjectAccess } from '@/hooks/useProjectAccess'
-
-
+import { useWorkbookCredit } from '@/hooks/useWorkbookCredit'
 
 interface Requirement {
   id: number
@@ -58,10 +57,57 @@ interface AIAnalysisData {
   suggestions: string // 제안점
 }
 
+interface QuantitativeKPI {
+  id: number
+  goal: string // 목표
+  value: string // 수치
+  unit: string // 단위
+}
+
+interface QualitativeKPI {
+  id: number
+  goal: string // 목표
+}
+
+interface RevenueStream {
+  id: number
+  revenueModel: string // 수익모델
+  amount: string // 금액
+  expectedRevenue: string // 예상매출
+  note: string // 비고
+}
+
+interface ProjectSchedule {
+  id: number
+  phase: string // 단계
+  period: string // 기간
+  activity: string // 활동
+  budget: string // 예산
+}
+
+interface InvestmentBudget {
+  id: number
+  item: string // 항목
+  amount: string // 금액
+  note: string // 비고
+}
+
+interface RevenueModel {
+  needsRevenueModel: boolean
+  kpi?: {
+    quantitative: QuantitativeKPI[]
+    qualitative: QualitativeKPI[]
+  }
+  revenueStream?: RevenueStream
+  projectSchedule?: ProjectSchedule[]
+  investmentBudget?: InvestmentBudget[]
+}
+
 interface Week8Data {
   requirements: Requirement[]
   scopeData: ScopeData
   aiAnalysis?: AIAnalysisData
+  revenueModel?: RevenueModel
   is_submitted?: boolean
 }
 
@@ -136,6 +182,7 @@ function Week8PageContent() {
     deleteProject,
   } = useProjectSettings(projectId)
   const { generateSummary } = useProjectSummary()
+  const { checkAndDeductCredit } = useWorkbookCredit(projectId, 8)
 
   // State
   const [toastVisible, setToastVisible] = useState(false)
@@ -163,6 +210,16 @@ function Week8PageContent() {
       expectedDuration: '',
       keyRisks: ['', '', ''],
       suggestions: '',
+    },
+    revenueModel: {
+      needsRevenueModel: false,
+      kpi: {
+        quantitative: [],
+        qualitative: [],
+      },
+      revenueStream: [],
+      projectSchedule: [],
+      investmentBudget: [],
     },
   })
 
@@ -337,7 +394,19 @@ function Week8PageContent() {
       const data = await loadStepData(8)
       if (data) {
         const week8Data = data as Week8Data
-        setFormData(week8Data)
+        setFormData({
+          ...week8Data,
+          revenueModel: week8Data.revenueModel || {
+            needsRevenueModel: false,
+            kpi: {
+              quantitative: [],
+              qualitative: [],
+            },
+          revenueStream: [],
+            projectSchedule: [],
+            investmentBudget: [],
+          },
+        })
         if (week8Data.is_submitted !== undefined) {
           setIsSubmitted(week8Data.is_submitted)
         }
@@ -437,6 +506,15 @@ function Week8PageContent() {
       return
     }
 
+    // 최초 1회 저장 시 크레딧 차감
+    try {
+      await checkAndDeductCredit()
+    } catch (error: any) {
+      setToastMessage(error.message || '크레딧 차감 중 오류가 발생했습니다.')
+      setToastVisible(true)
+      return
+    }
+
     const progress = calculateProgress()
     const success = await saveStepData(8, formData, progress)
 
@@ -460,6 +538,15 @@ function Week8PageContent() {
 
     if (!isSubmitted) {
       if (!confirm('워크북을 제출하시겠습니까?\n제출 후에는 수정이 제한됩니다.')) {
+        return
+      }
+
+      // 제출 시에도 크레딧 차감 (저장 시 차감 안 했을 경우)
+      try {
+        await checkAndDeductCredit()
+      } catch (error: any) {
+        setToastMessage(error.message || '크레딧 차감 중 오류가 발생했습니다.')
+        setToastVisible(true)
         return
       }
     }
@@ -1130,6 +1217,704 @@ ${formData.scopeData.technicalConstraints.trim() || '(입력 없음)'}
                     className="w-full px-4 py-3 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 resize-y disabled:bg-gray-100 disabled:cursor-not-allowed"
                   />
                 </div>
+              </div>
+            </WorkbookSection>
+
+            {/* Section 5: 수익모델 검토 */}
+            <WorkbookSection
+              icon={Target}
+              title="섹션 5: 수익모델 검토 (Revenue Model Review)"
+              description="수익모델이 필요한 제안서인 경우 수익모델을 검토하고 설정하세요."
+              themeColor="indigo"
+            >
+              <div className="space-y-6">
+                {/* 수익모델 검토 대상 토글 */}
+                <div className="flex items-center justify-between p-4 bg-indigo-50 border-2 border-indigo-200 rounded-xl">
+                  <div>
+                    <h3 className="text-base font-semibold text-gray-900 mb-1">
+                      수익모델 검토 대상
+                    </h3>
+                    <p className="text-sm text-gray-600">
+                      이 제안서에 수익모델이 필요한 경우 활성화하세요.
+                    </p>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={formData.revenueModel?.needsRevenueModel || false}
+                      onChange={(e) => {
+                        setFormData({
+                          ...formData,
+                          revenueModel: {
+                            needsRevenueModel: e.target.checked,
+                            kpi: formData.revenueModel?.kpi || {
+                              quantitative: [],
+                              qualitative: [],
+                            },
+                            revenueStream: formData.revenueModel?.revenueStream || [],
+                            projectSchedule: formData.revenueModel?.projectSchedule || [],
+                            investmentBudget: formData.revenueModel?.investmentBudget || [],
+                          },
+                        })
+                      }}
+                      disabled={readonly}
+                      className="sr-only peer"
+                    />
+                    <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-indigo-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600 disabled:opacity-50 disabled:cursor-not-allowed" />
+                  </label>
+                </div>
+
+                {/* 수익모델 입력 영역 (on일 때만 표시) */}
+                {formData.revenueModel?.needsRevenueModel && (
+                  <div className="space-y-6 border-2 border-indigo-200 rounded-xl p-6 bg-white">
+                    {/* 정량/정성적 KPI */}
+                    <div>
+                      <h4 className="text-base font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                        <CheckCircle2 className="w-5 h-5 text-indigo-600" />
+                        정량/정성적 KPI
+                      </h4>
+                      <div className="grid md:grid-cols-2 gap-6">
+                        {/* 정량적 KPI */}
+                        <div className="min-w-0">
+                          <div className="flex items-center justify-between mb-3">
+                            <label className="block text-sm font-medium text-gray-700">
+                              정량적 KPI
+                            </label>
+                            {!readonly && (
+                              <button
+                                onClick={() => {
+                                  const currentKpi = formData.revenueModel?.kpi || { quantitative: [], qualitative: [] }
+                                  const newId = currentKpi.quantitative.length > 0
+                                    ? Math.max(...currentKpi.quantitative.map((k: QuantitativeKPI) => k.id)) + 1
+                                    : 1
+                                  setFormData({
+                                    ...formData,
+                                    revenueModel: {
+                                      ...formData.revenueModel!,
+                                      kpi: {
+                                        ...currentKpi,
+                                        quantitative: [...currentKpi.quantitative, { id: newId, goal: '', value: '', unit: '' }],
+                                      },
+                                    },
+                                  })
+                                }}
+                                className="px-3 py-1 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors text-xs font-medium flex items-center gap-1 flex-shrink-0"
+                              >
+                                <Plus className="w-3 h-3" />
+                                추가
+                              </button>
+                            )}
+                          </div>
+                          <div className="space-y-3 max-h-[500px] overflow-y-auto pr-1">
+                            {formData.revenueModel?.kpi?.quantitative?.map((kpi) => (
+                              <div key={kpi.id} className="border border-gray-200 rounded-lg p-3 bg-gray-50">
+                                <div className="grid grid-cols-[1fr_0.8fr_0.8fr_auto] gap-2 items-center">
+                                  <input
+                                    type="text"
+                                    value={kpi.goal}
+                                    onChange={(e) => {
+                                      const currentKpi = formData.revenueModel?.kpi || { quantitative: [], qualitative: [] }
+                                      setFormData({
+                                        ...formData,
+                                        revenueModel: {
+                                          ...formData.revenueModel!,
+                                          kpi: {
+                                            ...currentKpi,
+                                            quantitative: currentKpi.quantitative.map((k: QuantitativeKPI) =>
+                                              k.id === kpi.id ? { ...k, goal: e.target.value } : k
+                                            ),
+                                          },
+                                        },
+                                      })
+                                    }}
+                                    placeholder="목표"
+                                    disabled={readonly}
+                                    className="w-full px-3 py-2 text-sm bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-100"
+                                  />
+                                  <input
+                                    type="text"
+                                    value={kpi.value}
+                                    onChange={(e) => {
+                                      const currentKpi = formData.revenueModel?.kpi || { quantitative: [], qualitative: [] }
+                                      setFormData({
+                                        ...formData,
+                                        revenueModel: {
+                                          ...formData.revenueModel!,
+                                          kpi: {
+                                            ...currentKpi,
+                                            quantitative: currentKpi.quantitative.map((k: QuantitativeKPI) =>
+                                              k.id === kpi.id ? { ...k, value: e.target.value } : k
+                                            ),
+                                          },
+                                        },
+                                      })
+                                    }}
+                                    placeholder="수치"
+                                    disabled={readonly}
+                                    className="w-full px-3 py-2 text-sm bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-100"
+                                  />
+                                  <input
+                                    type="text"
+                                    value={kpi.unit}
+                                    onChange={(e) => {
+                                      const currentKpi = formData.revenueModel?.kpi || { quantitative: [], qualitative: [] }
+                                      setFormData({
+                                        ...formData,
+                                        revenueModel: {
+                                          ...formData.revenueModel!,
+                                          kpi: {
+                                            ...currentKpi,
+                                            quantitative: currentKpi.quantitative.map((k: QuantitativeKPI) =>
+                                              k.id === kpi.id ? { ...k, unit: e.target.value } : k
+                                            ),
+                                          },
+                                        },
+                                      })
+                                    }}
+                                    placeholder="단위"
+                                    disabled={readonly}
+                                    className="w-full px-3 py-2 text-sm bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-100"
+                                  />
+                                  {!readonly && (
+                                    <button
+                                      onClick={() => {
+                                        const currentKpi = formData.revenueModel?.kpi || { quantitative: [], qualitative: [] }
+                                        setFormData({
+                                          ...formData,
+                                          revenueModel: {
+                                            ...formData.revenueModel!,
+                                            kpi: {
+                                              ...currentKpi,
+                                              quantitative: currentKpi.quantitative.filter((k: QuantitativeKPI) => k.id !== kpi.id),
+                                            },
+                                          },
+                                        })
+                                      }}
+                                      className="p-2 hover:bg-red-100 rounded transition-colors flex-shrink-0"
+                                    >
+                                      <Trash2 className="w-4 h-4 text-red-600" />
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+                            ))}
+                            {(!formData.revenueModel?.kpi?.quantitative || formData.revenueModel.kpi.quantitative.length === 0) && (
+                              <div className="text-center py-4 text-gray-400 text-sm">
+                                정량적 KPI가 없습니다.
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* 정성적 KPI */}
+                        <div className="min-w-0">
+                          <div className="flex items-center justify-between mb-3">
+                            <label className="block text-sm font-medium text-gray-700">
+                              정성적 KPI
+                            </label>
+                            {!readonly && (
+                              <button
+                                onClick={() => {
+                                  const currentKpi = formData.revenueModel?.kpi || { quantitative: [], qualitative: [] }
+                                  const newId = currentKpi.qualitative.length > 0
+                                    ? Math.max(...currentKpi.qualitative.map((k: QualitativeKPI) => k.id)) + 1
+                                    : 1
+                                  setFormData({
+                                    ...formData,
+                                    revenueModel: {
+                                      ...formData.revenueModel!,
+                                      kpi: {
+                                        ...currentKpi,
+                                        qualitative: [...currentKpi.qualitative, { id: newId, goal: '' }],
+                                      },
+                                    },
+                                  })
+                                }}
+                                className="px-3 py-1 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors text-xs font-medium flex items-center gap-1 flex-shrink-0"
+                              >
+                                <Plus className="w-3 h-3" />
+                                추가
+                              </button>
+                            )}
+                          </div>
+                          <div className="space-y-3 max-h-[500px] overflow-y-auto pr-1">
+                            {formData.revenueModel?.kpi?.qualitative?.map((kpi) => (
+                              <div key={kpi.id} className="border border-gray-200 rounded-lg p-3 bg-gray-50 flex gap-2">
+                                <input
+                                  type="text"
+                                  value={kpi.goal}
+                                  onChange={(e) => {
+                                    const currentKpi = formData.revenueModel?.kpi || { quantitative: [], qualitative: [] }
+                                    setFormData({
+                                      ...formData,
+                                      revenueModel: {
+                                        ...formData.revenueModel!,
+                                        kpi: {
+                                          ...currentKpi,
+                                          qualitative: currentKpi.qualitative.map((k: QualitativeKPI) =>
+                                            k.id === kpi.id ? { ...k, goal: e.target.value } : k
+                                          ),
+                                        },
+                                      },
+                                    })
+                                  }}
+                                  placeholder="목표를 입력하세요"
+                                  disabled={readonly}
+                                  className="flex-1 min-w-0 px-3 py-2 text-sm bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-100"
+                                />
+                                {!readonly && (
+                                  <button
+                                    onClick={() => {
+                                      const currentKpi = formData.revenueModel?.kpi || { quantitative: [], qualitative: [] }
+                                      setFormData({
+                                        ...formData,
+                                        revenueModel: {
+                                          ...formData.revenueModel!,
+                                          kpi: {
+                                            ...currentKpi,
+                                            qualitative: currentKpi.qualitative.filter((k: QualitativeKPI) => k.id !== kpi.id),
+                                          },
+                                        },
+                                      })
+                                    }}
+                                    className="p-2 hover:bg-red-100 rounded transition-colors flex-shrink-0"
+                                  >
+                                    <Trash2 className="w-4 h-4 text-red-600" />
+                                  </button>
+                                )}
+                              </div>
+                            ))}
+                            {(!formData.revenueModel?.kpi?.qualitative || formData.revenueModel.kpi.qualitative.length === 0) && (
+                              <div className="text-center py-4 text-gray-400 text-sm">
+                                정성적 KPI가 없습니다.
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* 수익화 모델 */}
+                    <div>
+                      <div className="flex items-center justify-between mb-4">
+                        <h4 className="text-base font-semibold text-gray-900 flex items-center gap-2">
+                          <FileText className="w-5 h-5 text-indigo-600" />
+                          수익화 모델
+                        </h4>
+                        {!readonly && (
+                          <button
+                            onClick={() => {
+                              const currentStreams = formData.revenueModel?.revenueStream || []
+                              const newId = currentStreams.length > 0
+                                ? Math.max(...currentStreams.map((s: RevenueStream) => s.id)) + 1
+                                : 1
+                              setFormData({
+                                ...formData,
+                                revenueModel: {
+                                  ...formData.revenueModel!,
+                                  revenueStream: [...currentStreams, { id: newId, revenueModel: '', amount: '', expectedRevenue: '', note: '' }],
+                                },
+                              })
+                            }}
+                            className="px-3 py-1.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors text-sm font-medium flex items-center gap-1"
+                          >
+                            <Plus className="w-4 h-4" />
+                            추가
+                          </button>
+                        )}
+                      </div>
+                      <div className="space-y-3">
+                        {formData.revenueModel?.revenueStream?.map((stream) => (
+                          <div key={stream.id} className="border border-gray-200 rounded-lg p-4 bg-gray-50">
+                            <div className="grid grid-cols-4 gap-3">
+                              <input
+                                type="text"
+                                value={stream.revenueModel}
+                                onChange={(e) => {
+                                  const currentStreams = formData.revenueModel?.revenueStream || []
+                                  setFormData({
+                                    ...formData,
+                                    revenueModel: {
+                                      ...formData.revenueModel!,
+                                      revenueStream: currentStreams.map((s: RevenueStream) =>
+                                        s.id === stream.id ? { ...s, revenueModel: e.target.value } : s
+                                      ),
+                                    },
+                                  })
+                                }}
+                                placeholder="수익모델"
+                                disabled={readonly}
+                                className="px-3 py-2 text-sm bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-100"
+                              />
+                              <input
+                                type="text"
+                                value={stream.amount}
+                                onChange={(e) => {
+                                  const currentStreams = formData.revenueModel?.revenueStream || []
+                                  setFormData({
+                                    ...formData,
+                                    revenueModel: {
+                                      ...formData.revenueModel!,
+                                      revenueStream: currentStreams.map((s: RevenueStream) =>
+                                        s.id === stream.id ? { ...s, amount: e.target.value } : s
+                                      ),
+                                    },
+                                  })
+                                }}
+                                placeholder="금액"
+                                disabled={readonly}
+                                className="px-3 py-2 text-sm bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-100"
+                              />
+                              <input
+                                type="text"
+                                value={stream.expectedRevenue}
+                                onChange={(e) => {
+                                  const currentStreams = formData.revenueModel?.revenueStream || []
+                                  setFormData({
+                                    ...formData,
+                                    revenueModel: {
+                                      ...formData.revenueModel!,
+                                      revenueStream: currentStreams.map((s: RevenueStream) =>
+                                        s.id === stream.id ? { ...s, expectedRevenue: e.target.value } : s
+                                      ),
+                                    },
+                                  })
+                                }}
+                                placeholder="예상매출"
+                                disabled={readonly}
+                                className="px-3 py-2 text-sm bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-100"
+                              />
+                              <div className="flex gap-2">
+                                <input
+                                  type="text"
+                                  value={stream.note}
+                                  onChange={(e) => {
+                                    const currentStreams = formData.revenueModel?.revenueStream || []
+                                    setFormData({
+                                      ...formData,
+                                      revenueModel: {
+                                        ...formData.revenueModel!,
+                                        revenueStream: currentStreams.map((s: RevenueStream) =>
+                                          s.id === stream.id ? { ...s, note: e.target.value } : s
+                                        ),
+                                      },
+                                    })
+                                  }}
+                                  placeholder="비고"
+                                  disabled={readonly}
+                                  className="flex-1 px-3 py-2 text-sm bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-100"
+                                />
+                                {!readonly && (
+                                  <button
+                                    onClick={() => {
+                                      const currentStreams = formData.revenueModel?.revenueStream || []
+                                      setFormData({
+                                        ...formData,
+                                        revenueModel: {
+                                          ...formData.revenueModel!,
+                                          revenueStream: currentStreams.filter((s: RevenueStream) => s.id !== stream.id),
+                                        },
+                                      })
+                                    }}
+                                    className="p-2 hover:bg-red-100 rounded transition-colors flex-shrink-0"
+                                  >
+                                    <Trash2 className="w-4 h-4 text-red-600" />
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                        {(!formData.revenueModel?.revenueStream || formData.revenueModel.revenueStream.length === 0) && (
+                          <div className="text-center py-4 text-gray-400 text-sm">
+                            수익화 모델이 없습니다.
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* 추진일정 */}
+                    <div>
+                      <div className="flex items-center justify-between mb-4">
+                        <h4 className="text-base font-semibold text-gray-900 flex items-center gap-2">
+                          <FileText className="w-5 h-5 text-indigo-600" />
+                          추진일정
+                        </h4>
+                        {!readonly && (
+                          <button
+                            onClick={() => {
+                              const currentSchedule = formData.revenueModel?.projectSchedule || []
+                              const newId = currentSchedule.length > 0
+                                ? Math.max(...currentSchedule.map((s: ProjectSchedule) => s.id)) + 1
+                                : 1
+                              setFormData({
+                                ...formData,
+                                revenueModel: {
+                                  ...formData.revenueModel!,
+                                  projectSchedule: [...currentSchedule, { id: newId, phase: '', period: '', activity: '', budget: '' }],
+                                },
+                              })
+                            }}
+                            className="px-3 py-1.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors text-sm font-medium flex items-center gap-1"
+                          >
+                            <Plus className="w-4 h-4" />
+                            추가
+                          </button>
+                        )}
+                      </div>
+                      <div className="space-y-3">
+                        {formData.revenueModel?.projectSchedule?.map((schedule) => (
+                          <div key={schedule.id} className="border border-gray-200 rounded-lg p-4 bg-gray-50">
+                            <div className="grid grid-cols-4 gap-3">
+                              <input
+                                type="text"
+                                value={schedule.phase}
+                                onChange={(e) => {
+                                  const currentSchedule = formData.revenueModel?.projectSchedule || []
+                                  setFormData({
+                                    ...formData,
+                                    revenueModel: {
+                                      ...formData.revenueModel!,
+                                      projectSchedule: currentSchedule.map((s: ProjectSchedule) =>
+                                        s.id === schedule.id ? { ...s, phase: e.target.value } : s
+                                      ),
+                                    },
+                                  })
+                                }}
+                                placeholder="단계"
+                                disabled={readonly}
+                                className="px-3 py-2 text-sm bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-100"
+                              />
+                              <input
+                                type="text"
+                                value={schedule.period}
+                                onChange={(e) => {
+                                  const currentSchedule = formData.revenueModel?.projectSchedule || []
+                                  setFormData({
+                                    ...formData,
+                                    revenueModel: {
+                                      ...formData.revenueModel!,
+                                      projectSchedule: currentSchedule.map((s: ProjectSchedule) =>
+                                        s.id === schedule.id ? { ...s, period: e.target.value } : s
+                                      ),
+                                    },
+                                  })
+                                }}
+                                placeholder="기간"
+                                disabled={readonly}
+                                className="px-3 py-2 text-sm bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-100"
+                              />
+                              <input
+                                type="text"
+                                value={schedule.activity}
+                                onChange={(e) => {
+                                  const currentSchedule = formData.revenueModel?.projectSchedule || []
+                                  setFormData({
+                                    ...formData,
+                                    revenueModel: {
+                                      ...formData.revenueModel!,
+                                      projectSchedule: currentSchedule.map((s: ProjectSchedule) =>
+                                        s.id === schedule.id ? { ...s, activity: e.target.value } : s
+                                      ),
+                                    },
+                                  })
+                                }}
+                                placeholder="활동"
+                                disabled={readonly}
+                                className="px-3 py-2 text-sm bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-100"
+                              />
+                              <div className="flex gap-2">
+                                <input
+                                  type="text"
+                                  value={schedule.budget}
+                                  onChange={(e) => {
+                                    const currentSchedule = formData.revenueModel?.projectSchedule || []
+                                    setFormData({
+                                      ...formData,
+                                      revenueModel: {
+                                        ...formData.revenueModel!,
+                                        projectSchedule: currentSchedule.map((s: ProjectSchedule) =>
+                                          s.id === schedule.id ? { ...s, budget: e.target.value } : s
+                                        ),
+                                      },
+                                    })
+                                  }}
+                                  placeholder="예산"
+                                  disabled={readonly}
+                                  className="flex-1 px-3 py-2 text-sm bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-100"
+                                />
+                                {!readonly && (
+                                  <button
+                                    onClick={() => {
+                                      const currentSchedule = formData.revenueModel?.projectSchedule || []
+                                      setFormData({
+                                        ...formData,
+                                        revenueModel: {
+                                          ...formData.revenueModel!,
+                                          projectSchedule: currentSchedule.filter((s: ProjectSchedule) => s.id !== schedule.id),
+                                        },
+                                      })
+                                    }}
+                                    className="p-2 hover:bg-red-100 rounded transition-colors"
+                                  >
+                                    <Trash2 className="w-4 h-4 text-red-600" />
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                        {(!formData.revenueModel?.projectSchedule || formData.revenueModel.projectSchedule.length === 0) && (
+                          <div className="text-center py-4 text-gray-400 text-sm">
+                            추진일정이 없습니다.
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* 초기 투자 예산 */}
+                    <div>
+                      <div className="flex items-center justify-between mb-4">
+                        <h4 className="text-base font-semibold text-gray-900 flex items-center gap-2">
+                          <FileText className="w-5 h-5 text-indigo-600" />
+                          초기 투자 예산
+                        </h4>
+                        {!readonly && (
+                          <button
+                            onClick={() => {
+                              const currentBudget = formData.revenueModel?.investmentBudget || []
+                              const newId = currentBudget.length > 0
+                                ? Math.max(...currentBudget.map((b: InvestmentBudget) => b.id)) + 1
+                                : 1
+                              setFormData({
+                                ...formData,
+                                revenueModel: {
+                                  ...formData.revenueModel!,
+                                  investmentBudget: [...currentBudget, { id: newId, item: '', amount: '', note: '' }],
+                                },
+                              })
+                            }}
+                            className="px-3 py-1.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors text-sm font-medium flex items-center gap-1"
+                          >
+                            <Plus className="w-4 h-4" />
+                            추가
+                          </button>
+                        )}
+                      </div>
+                      <div className="space-y-3">
+                        {formData.revenueModel?.investmentBudget?.map((budget) => (
+                          <div key={budget.id} className="border border-gray-200 rounded-lg p-4 bg-gray-50">
+                            <div className="grid grid-cols-3 gap-3">
+                              <input
+                                type="text"
+                                value={budget.item}
+                                onChange={(e) => {
+                                  const currentBudget = formData.revenueModel?.investmentBudget || []
+                                  setFormData({
+                                    ...formData,
+                                    revenueModel: {
+                                      ...formData.revenueModel!,
+                                      investmentBudget: currentBudget.map((b: InvestmentBudget) =>
+                                        b.id === budget.id ? { ...b, item: e.target.value } : b
+                                      ),
+                                    },
+                                  })
+                                }}
+                                placeholder="항목"
+                                disabled={readonly}
+                                className="px-3 py-2 text-sm bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-100"
+                              />
+                              <div className="flex items-center gap-2">
+                                <input
+                                  type="text"
+                                  value={budget.amount}
+                                  onChange={(e) => {
+                                    // 숫자만 허용
+                                    const value = e.target.value.replace(/[^0-9]/g, '')
+                                    const currentBudget = formData.revenueModel?.investmentBudget || []
+                                    setFormData({
+                                      ...formData,
+                                      revenueModel: {
+                                        ...formData.revenueModel!,
+                                        investmentBudget: currentBudget.map((b: InvestmentBudget) =>
+                                          b.id === budget.id ? { ...b, amount: value } : b
+                                        ),
+                                      },
+                                    })
+                                  }}
+                                  placeholder="금액"
+                                  disabled={readonly}
+                                  className="flex-1 px-3 py-2 text-sm bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-100"
+                                />
+                                <span className="text-sm text-gray-600 whitespace-nowrap">만원</span>
+                              </div>
+                              <div className="flex gap-2">
+                                <input
+                                  type="text"
+                                  value={budget.note}
+                                  onChange={(e) => {
+                                    const currentBudget = formData.revenueModel?.investmentBudget || []
+                                    setFormData({
+                                      ...formData,
+                                      revenueModel: {
+                                        ...formData.revenueModel!,
+                                        investmentBudget: currentBudget.map((b: InvestmentBudget) =>
+                                          b.id === budget.id ? { ...b, note: e.target.value } : b
+                                        ),
+                                      },
+                                    })
+                                  }}
+                                  placeholder="비고"
+                                  disabled={readonly}
+                                  className="flex-1 px-3 py-2 text-sm bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-100"
+                                />
+                                {!readonly && (
+                                  <button
+                                    onClick={() => {
+                                      const currentBudget = formData.revenueModel?.investmentBudget || []
+                                      setFormData({
+                                        ...formData,
+                                        revenueModel: {
+                                          ...formData.revenueModel!,
+                                          investmentBudget: currentBudget.filter((b: InvestmentBudget) => b.id !== budget.id),
+                                        },
+                                      })
+                                    }}
+                                    className="p-2 hover:bg-red-100 rounded transition-colors"
+                                  >
+                                    <Trash2 className="w-4 h-4 text-red-600" />
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                        {(!formData.revenueModel?.investmentBudget || formData.revenueModel.investmentBudget.length === 0) && (
+                          <div className="text-center py-4 text-gray-400 text-sm">
+                            초기 투자 예산이 없습니다.
+                          </div>
+                        )}
+                      </div>
+                      {/* 총 예산 합계 */}
+                      {formData.revenueModel?.investmentBudget && formData.revenueModel.investmentBudget.length > 0 && (
+                        <div className="mt-4 pt-4 border-t border-gray-300">
+                          <div className="flex items-center justify-end gap-4">
+                            <span className="text-sm font-medium text-gray-700">총 예산 합계:</span>
+                            <span className="text-lg font-bold text-indigo-600">
+                              {(() => {
+                                const total = formData.revenueModel?.investmentBudget?.reduce((sum: number, budget: InvestmentBudget) => {
+                                  const amount = parseInt(budget.amount) || 0
+                                  return sum + amount
+                                }, 0) || 0
+                                return total.toLocaleString('ko-KR')
+                              })()} 만원
+                            </span>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
             </WorkbookSection>
 

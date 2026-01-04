@@ -29,8 +29,7 @@ import { ProjectSettingsModal } from '@/components/workbook/ProjectSettingsModal
 import { ProjectSummaryModal } from '@/components/workbook/ProjectSummaryModal'
 import { WorkbookStatusBar } from '@/components/WorkbookStatusBar'
 import { useProjectAccess } from '@/hooks/useProjectAccess'
-
-
+import { useWorkbookCredit } from '@/hooks/useWorkbookCredit'
 
 interface AISearchLog {
   id: number
@@ -94,6 +93,7 @@ function Week2PageContent() {
     deleteProject,
   } = useProjectSettings(projectId)
   const { generateSummary } = useProjectSummary()
+  const { checkAndDeductCredit } = useWorkbookCredit(projectId, 2)
 
   // State
   const [toastVisible, setToastVisible] = useState(false)
@@ -443,6 +443,15 @@ function Week2PageContent() {
       return
     }
 
+    // 최초 1회 저장 시 크레딧 차감
+    try {
+      await checkAndDeductCredit()
+    } catch (error: any) {
+      setToastMessage(error.message || '크레딧 차감 중 오류가 발생했습니다.')
+      setToastVisible(true)
+      return
+    }
+
     const week2Data: Week2Data = {
       aiSearchLog,
       factCheckTable,
@@ -538,6 +547,17 @@ function Week2PageContent() {
       )
     ) {
       return
+    }
+
+    // 제출 시에도 크레딧 차감 (저장 시 차감 안 했을 경우)
+    if (!isSubmitted) {
+      try {
+        await checkAndDeductCredit()
+      } catch (error: any) {
+        setToastMessage(error.message || '크레딧 차감 중 오류가 발생했습니다.')
+        setToastVisible(true)
+        return
+      }
     }
 
     const week2Data: Week2Data = {

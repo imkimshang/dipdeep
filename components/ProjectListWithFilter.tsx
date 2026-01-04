@@ -7,6 +7,7 @@ import { DashboardHiddenProjectsToggle } from '@/components/DashboardHiddenProje
 import { UnhideProjectButton } from '@/components/UnhideProjectButton'
 import { createClient } from '@/utils/supabase/client'
 import { calculateProgress } from '@/utils/calculateProgress'
+import { GLOBAL_UI } from '@/i18n/translations'
 
 interface ProjectWithProgress {
   id: string
@@ -149,10 +150,10 @@ export function ProjectListWithFilter({ projects }: ProjectListWithFilterProps) 
           <BookOpen className="w-10 h-10 text-gray-300" />
         </div>
         <p className="text-gray-600 mb-2 font-medium">
-          {showHidden ? '표시할 프로젝트가 없습니다.' : '아직 생성된 프로젝트가 없습니다.'}
+          {showHidden ? GLOBAL_UI.noProjectsHidden : GLOBAL_UI.noProjects}
         </p>
         <p className="text-sm text-gray-400">
-          {showHidden ? '' : '새 프로젝트를 생성하여 시작해보세요!'}
+          {showHidden ? '' : GLOBAL_UI.startCreating}
         </p>
       </div>
     )
@@ -163,10 +164,10 @@ export function ProjectListWithFilter({ projects }: ProjectListWithFilterProps) 
       {/* 필터 버튼 */}
       <div className="flex items-center justify-between">
         <div className="text-sm text-gray-500">
-          총 {visibleProjects.length}개의 프로젝트
+          {GLOBAL_UI.totalProjects(visibleProjects.length)}
           {showHidden && hiddenProjects.length > 0 && (
             <span className="ml-2 text-purple-600">
-              (숨김: {hiddenProjects.length}개)
+              (Hidden: {hiddenProjects.length})
             </span>
           )}
         </div>
@@ -188,7 +189,7 @@ export function ProjectListWithFilter({ projects }: ProjectListWithFilterProps) 
       {/* 숨겨진 프로젝트 */}
       {showHidden && hiddenProjects.length > 0 && (
         <div className="space-y-4">
-          <h3 className="text-sm font-semibold text-gray-600 mb-2">숨겨진 프로젝트</h3>
+          <h3 className="text-sm font-semibold text-gray-600 mb-2">{GLOBAL_UI.hiddenProjects}</h3>
           {hiddenProjects.map((project) => (
             <ProjectCard key={project.id} project={project} isHidden={true} />
           ))}
@@ -309,16 +310,16 @@ function ProjectCard({
                       : `text-gray-900 ${typeConfig.titleHover}`
                   }`}
                 >
-                  {project.title || '제목 없음'}
+                  {project.title || 'Untitled'}
                 </h3>
                 {/* 프로젝트 유형 배지 (팀/개인) */}
                 {project.is_team ? (
                   <span className="px-3 py-1 bg-purple-100 text-purple-700 text-xs font-medium rounded-full flex items-center gap-1.5">
                     <Users className="w-3 h-3" />
-                    <span>팀</span>
+                    <span>Team</span>
                     {project.team_code && (
                       <>
-                        <span className="text-purple-600">(코드 -</span>
+                        <span className="text-purple-600">(Code -</span>
                         <span className="font-mono font-bold">{project.team_code}</span>
                         <span className="text-purple-600">)</span>
                       </>
@@ -326,7 +327,7 @@ function ProjectCard({
                   </span>
                 ) : (
                   <span className="px-2.5 py-0.5 bg-gray-100 text-gray-600 text-xs font-medium rounded-full">
-                    개인
+                    Personal
                   </span>
                 )}
               </div>
@@ -336,15 +337,15 @@ function ProjectCard({
                 >
                   <IconComponent className="w-3 h-3" />
                   {project.type === 'webapp'
-                    ? '웹 애플리케이션'
+                    ? 'Web Application'
                     : project.type === 'event'
-                    ? '행사/이벤트'
+                    ? 'Event'
                     : project.type === 'product'
-                    ? '제품'
-                    : project.type || '일반'}
+                    ? 'Product'
+                    : project.type || 'General'}
                 </span>
                 <span className="text-sm text-gray-500">
-                  진행 단계: {project.current_step ?? 0}/12
+                  Step: {project.current_step ?? 0}/12
                 </span>
               </div>
             </div>
@@ -353,7 +354,7 @@ function ProjectCard({
 
         {/* 단위별 진척률 (회차별) */}
         <div className="mt-4">
-          <h4 className="text-xs font-semibold text-gray-600 mb-2">단위별 진척률</h4>
+          <h4 className="text-xs font-semibold text-gray-600 mb-2">Weekly Progress</h4>
           <div className="flex gap-1 flex-wrap">
             {project.progress.weekly.map((week) => (
               <div
@@ -365,12 +366,12 @@ function ProjectCard({
                     ? 'bg-blue-500 text-white'
                     : 'bg-gray-200 text-gray-500'
                 }`}
-                title={`${week.week}주차: ${
+                title={`Week ${week.week}: ${
                   week.status === 'completed'
-                    ? '제출 완료'
+                    ? 'Completed'
                     : week.status === 'inProgress'
-                    ? '진행중'
-                    : '시작전'
+                    ? 'In Progress'
+                    : 'Not Started'
                 } (${week.progress}%)`}
               >
                 {week.week}

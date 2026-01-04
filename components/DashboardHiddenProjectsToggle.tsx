@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { Eye, EyeOff } from 'lucide-react'
+import { GLOBAL_UI } from '@/i18n/translations'
 
 interface DashboardHiddenProjectsToggleProps {
   showHidden: boolean
@@ -24,12 +25,12 @@ export function DashboardHiddenProjectsToggle({
       {showHidden ? (
         <>
           <EyeOff className="w-4 h-4" />
-          숨겨진 프로젝트 숨기기
+          {GLOBAL_UI.hideHidden}
         </>
       ) : (
         <>
           <Eye className="w-4 h-4" />
-          숨겨진 프로젝트 보기
+          {GLOBAL_UI.showHidden}
         </>
       )}
     </button>

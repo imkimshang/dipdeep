@@ -30,51 +30,70 @@ import { ProjectSettingsModal } from '@/components/workbook/ProjectSettingsModal
 import { ProjectSummaryModal } from '@/components/workbook/ProjectSummaryModal'
 import { WorkbookStatusBar } from '@/components/WorkbookStatusBar'
 import { useProjectAccess } from '@/hooks/useProjectAccess'
+import { useWorkbookCredit } from '@/hooks/useWorkbookCredit'
+import { EVENT_TRANSLATIONS } from '@/i18n/translations'
+import { useLanguage } from '@/contexts/LanguageContext'
 
 export const dynamic = 'force-dynamic'
 
-// 예약 플랫폼 옵션
-const BOOKING_CHANNELS = [
-  '네이버 예약',
-  '이벤터스',
-  '캐치테이블',
-  '구글폼',
-  '자사 홈페이지',
-  '인스타그램 DM',
-  '카카오톡 채널',
-  '기타',
-]
+// 예약 플랫폼 옵션 (다국어 지원)
+const getBookingChannels = (language: 'en' | 'ko') => {
+  const safeLang = language || 'ko'
+  const channels = EVENT_TRANSLATIONS[safeLang]?.session6?.bookingChannels || EVENT_TRANSLATIONS['ko'].session6.bookingChannels
+  return [
+    channels.naver,
+    channels.eventus,
+    channels.catchtable,
+    channels.googleForm,
+    channels.website,
+    channels.instagram,
+    channels.kakao,
+    channels.other,
+  ]
+}
 
-// 표준 여정 단계
-const STANDARD_JOURNEY_STEPS = [
-  { id: 'entry', label: '입장', icon: '🚪' },
-  { id: 'wait', label: '대기', icon: '⏳' },
-  { id: 'experience', label: '체험/관람', icon: '🎨' },
-  { id: 'rest', label: '휴식', icon: '☕' },
-  { id: 'purchase', label: '구매/F&B', icon: '🛍️' },
-  { id: 'exit', label: '퇴장', icon: '👋' },
-]
+// 표준 여정 단계 (다국어 지원)
+const getStandardJourneySteps = (language: 'en' | 'ko') => {
+  const safeLang = language || 'ko'
+  const steps = EVENT_TRANSLATIONS[safeLang]?.session6?.standardSteps || EVENT_TRANSLATIONS['ko'].session6.standardSteps
+  return [
+    { id: 'entry', label: steps.entry, icon: '🚪' },
+    { id: 'wait', label: steps.wait, icon: '⏳' },
+    { id: 'experience', label: steps.experience, icon: '🎨' },
+    { id: 'rest', label: steps.rest, icon: '☕' },
+    { id: 'purchase', label: steps.purchase, icon: '🛍️' },
+    { id: 'exit', label: steps.exit, icon: '👋' },
+  ]
+}
 
-// 감정 옵션
-const EMOTION_OPTIONS = [
-  { value: 'excited', label: '기대됨', icon: '😊' },
-  { value: 'happy', label: '신남', icon: '🤩' },
-  { value: 'neutral', label: '보통', icon: '😐' },
-  { value: 'bored', label: '지루함', icon: '😑' },
-  { value: 'disappointed', label: '아쉬움', icon: '😔' },
-  { value: 'satisfied', label: '만족', icon: '😌' },
-]
+// 감정 옵션 (다국어 지원)
+const getEmotionOptions = (language: 'en' | 'ko') => {
+  const safeLang = language || 'ko'
+  const emotions = EVENT_TRANSLATIONS[safeLang]?.session6?.emotions || EVENT_TRANSLATIONS['ko'].session6.emotions
+  return [
+    { value: 'excited', label: emotions.excited, icon: '😊' },
+    { value: 'happy', label: emotions.happy, icon: '🤩' },
+    { value: 'neutral', label: emotions.neutral, icon: '😐' },
+    { value: 'bored', label: emotions.bored, icon: '😑' },
+    { value: 'disappointed', label: emotions.disappointed, icon: '😔' },
+    { value: 'satisfied', label: emotions.satisfied, icon: '😌' },
+  ]
+}
 
-  // 해결 방안 아이디어
-const SOLUTION_IDEAS = [
-  '대기열 관리 앱 사용 (나우웨이팅 등)',
-  '사전 안내방송 및 스태프 배치',
-  '대기 공간 내 즐길 거리 배치',
-  '동선 분리 (입/출구 구분)',
-  '타임슬롯 예약 분산',
-  'VIP 라인 운영',
-  '기타',
-]
+// 해결 방안 아이디어 (다국어 지원)
+const getSolutionIdeas = (language: 'en' | 'ko') => {
+  const safeLang = language || 'ko'
+  const solutions = EVENT_TRANSLATIONS[safeLang]?.session6?.solutions || EVENT_TRANSLATIONS['ko'].session6.solutions
+  return [
+    solutions.waitingApp,
+    solutions.staffAnnouncement,
+    solutions.waitingEntertainment,
+    solutions.flowSeparation,
+    solutions.timeSlot,
+    solutions.vipLine,
+    solutions.other,
+  ]
+}
 
 interface BookingFlow {
   step: number
@@ -120,6 +139,13 @@ function EventWeek6PageContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const projectId = searchParams.get('projectId') || ''
+  const { language } = useLanguage()
+  const safeLanguage = language || 'ko'
+  const T = EVENT_TRANSLATIONS[safeLanguage]?.session6 || EVENT_TRANSLATIONS['ko'].session6
+  const BOOKING_CHANNELS = getBookingChannels(safeLanguage)
+  const STANDARD_JOURNEY_STEPS = getStandardJourneySteps(safeLanguage)
+  const EMOTION_OPTIONS = getEmotionOptions(safeLanguage)
+  const SOLUTION_IDEAS = getSolutionIdeas(safeLanguage)
 
   // 권한 검증
   useProjectAccess(projectId)
@@ -148,6 +174,7 @@ function EventWeek6PageContent() {
     unhideProject,
   } = useProjectSettings(projectId)
   const { generateSummary } = useProjectSummary()
+  const { checkAndDeductCredit } = useWorkbookCredit(projectId, 6)
 
   // State
   const [toastVisible, setToastVisible] = useState(false)
@@ -366,6 +393,15 @@ function EventWeek6PageContent() {
       return
     }
 
+    // 최초 1회 저장 시 크레딧 차감
+    try {
+      await checkAndDeductCredit()
+    } catch (error: any) {
+      setToastMessage(error.message || '크레딧 차감 중 오류가 발생했습니다.')
+      setToastVisible(true)
+      return
+    }
+
     const eventData: EventWeek6Data = {
       booking: {
         requiresBooking,
@@ -416,6 +452,17 @@ function EventWeek6PageContent() {
       )
     ) {
       return
+    }
+
+    // 제출 시에도 크레딧 차감 (저장 시 차감 안 했을 경우)
+    if (!isSubmitted) {
+      try {
+        await checkAndDeductCredit()
+      } catch (error: any) {
+        setToastMessage(error.message || '크레딧 차감 중 오류가 발생했습니다.')
+        setToastVisible(true)
+        return
+      }
     }
 
     const eventData: EventWeek6Data = {
@@ -666,21 +713,10 @@ function EventWeek6PageContent() {
 
   // 이벤트 워크북용 회차 제목
   const getEventWeekTitle = useCallback((week: number): string => {
-    const eventTitles: { [key: number]: string } = {
-      1: 'Phase 1 - 행사 방향성 설정 및 트렌드 헌팅',
-      2: 'Phase 1 - 타겟 페르소나',
-      3: 'Phase 1 - 레퍼런스 벤치마킹 및 정량 분석',
-      4: 'Phase 1 - 행사 개요 및 환경 분석',
-      5: 'Phase 2 - 세계관 및 스토리텔링',
-      6: 'Phase 2 - 방문객 여정 지도',
-      7: 'Phase 2 - 킬러 콘텐츠 및 바이럴 기획',
-      8: 'Phase 2 - 마스터 플랜',
-      9: 'Phase 3 - 행사 브랜딩',
-      10: 'Phase 3 - 공간 조감도',
-      11: 'Phase 3 - D-Day 통합 실행 계획',
-      12: 'Phase 3 - 최종 피칭 및 검증',
-    }
-    return eventTitles[week] || `${week}회차`
+    // 사이드바는 항상 영어 (Global Shell)
+    const titles = EVENT_TRANSLATIONS.en.titles
+    const title = titles[week - 1] || `Week ${week}`
+    return title
   }, [])
 
   const getStepStatus = (weekNumber: number) => {
@@ -808,9 +844,9 @@ function EventWeek6PageContent() {
               <div className="flex items-center gap-3 mb-6">
                 <Users className="w-6 h-6 text-indigo-600" />
                 <div>
-                  <h2 className="text-xl font-bold text-gray-900">사전 신청 프로세스</h2>
+                  <h2 className="text-xl font-bold text-gray-900">{T.preBooking}</h2>
                   <p className="text-sm text-gray-600 mt-1">
-                    방문객이 행사에 오기 위해 거쳐야 하는 예약 및 등록 과정을 설계합니다.
+                    {T.preBookingDescription}
                   </p>
                 </div>
               </div>
@@ -820,10 +856,10 @@ function EventWeek6PageContent() {
                 <div className="flex items-center justify-between p-4 bg-indigo-50 border border-indigo-200 rounded-lg">
                   <div>
                     <label className="text-sm font-medium text-gray-900">
-                      사전 예약 필요 여부
+                      {T.requiresReservation}
                     </label>
                     <p className="text-xs text-gray-600 mt-1">
-                      사전 예약이 필요 없는 행사는 현장 방문 전용으로 설정할 수 있습니다.
+                      {T.requiresReservationDescription || 'Events that do not require advance reservations can be set to on-site visits only.'}
                     </p>
                   </div>
                   <button
@@ -834,10 +870,10 @@ function EventWeek6PageContent() {
                         if (!requiresBooking) {
                           // 사전 예약 필요로 변경 시 기본 플로우 초기화
                           setBookingFlow([
-                            { step: 1, title: '인지/접속', description: '', friction: '' },
-                            { step: 2, title: '정보 입력', description: '', friction: '' },
-                            { step: 3, title: '결제/확정', description: '', friction: '' },
-                            { step: 4, title: '티켓 수령', description: '', friction: '' },
+                            { step: 1, title: T.step1.split('(')[0].trim(), description: '', friction: '' },
+                            { step: 2, title: T.step2.split('(')[0].trim(), description: '', friction: '' },
+                            { step: 3, title: T.step3.split('(')[0].trim(), description: '', friction: '' },
+                            { step: 4, title: T.step4.split('(')[0].trim(), description: '', friction: '' },
                           ])
                         } else {
                           // 현장 방문 전용으로 변경 시 채널 초기화
@@ -864,7 +900,7 @@ function EventWeek6PageContent() {
                     {/* 채널 선택 */}
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-3">
-                        예약 플랫폼 선택
+                        {T.reservationChannel}
                       </label>
                       <div className="flex flex-wrap gap-2">
                         {BOOKING_CHANNELS.map((channel) => (
@@ -883,14 +919,14 @@ function EventWeek6PageContent() {
                           </button>
                         ))}
                       </div>
-                      {bookingChannel.includes('기타') && (
+                      {(bookingChannel.includes('기타') || bookingChannel.includes(T.other) || bookingChannel.includes('Other')) && (
                         <div className="mt-3">
                           <input
                             type="text"
                             value={customChannel}
                             onChange={(e) => setCustomChannel(e.target.value)}
                             disabled={readonly}
-                            placeholder="기타 예약 플랫폼을 입력하세요"
+                            placeholder={T.customChannelPlaceholder || 'Enter other booking platform'}
                             className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm disabled:bg-gray-100 disabled:cursor-not-allowed"
                           />
                         </div>
@@ -900,7 +936,7 @@ function EventWeek6PageContent() {
                     {/* 신청 흐름 빌더 */}
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-4">
-                        신청 흐름 빌더
+                        {T.bookingFlowBuilder || 'Booking Flow Builder'}
                       </label>
                       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                         {bookingFlow.map((flow, index) => (
@@ -918,7 +954,7 @@ function EventWeek6PageContent() {
                             )}
                             <div className="space-y-3 flex-1">
                               <div>
-                                <label className="block text-xs text-gray-600 mb-1">설명</label>
+                                <label className="block text-xs text-gray-600 mb-1">{T.description}</label>
                                 <textarea
                                   value={flow.description}
                                   onChange={(e) => {
@@ -942,7 +978,7 @@ function EventWeek6PageContent() {
                               </div>
                               <div>
                                 <label className="block text-xs text-gray-600 mb-1">
-                                  이탈 요인 (Friction)
+                                  {T.friction}
                                 </label>
                                 <textarea
                                   value={flow.friction || ''}
@@ -953,7 +989,7 @@ function EventWeek6PageContent() {
                                   }}
                                   disabled={readonly}
                                   rows={2}
-                                  placeholder="예: 복잡한 정보 입력 양식, 결제 오류 등"
+                                  placeholder={T.frictionPlaceholder}
                                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm resize-none disabled:bg-gray-100 disabled:cursor-not-allowed bg-red-50"
                                 />
                               </div>
@@ -973,9 +1009,9 @@ function EventWeek6PageContent() {
                 <div className="flex items-center gap-3">
                   <MapPin className="w-6 h-6 text-indigo-600" />
                   <div>
-                    <h2 className="text-xl font-bold text-gray-900">동선 시뮬레이터</h2>
+                    <h2 className="text-xl font-bold text-gray-900">{T.journeyMap}</h2>
                     <p className="text-sm text-gray-600 mt-1">
-                      행사장 내에서의 물리적 이동 경로와 심리적 변화를 단계별로 정리합니다.
+                      {T.journeyMapDescription}
                     </p>
                   </div>
                 </div>
@@ -987,7 +1023,7 @@ function EventWeek6PageContent() {
                     className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm"
                   >
                     <Plus className="w-4 h-4" />
-                    단계 추가
+                    {T.addStep}
                   </button>
                 ) : (
                   <div className="flex items-center gap-2">
@@ -1004,7 +1040,7 @@ function EventWeek6PageContent() {
                           setNewStepLabel('')
                         }
                       }}
-                      placeholder="단계명을 입력하세요"
+                      placeholder={T.stepNamePlaceholder || 'Enter step name'}
                       autoFocus
                       className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm"
                     />
@@ -1014,7 +1050,7 @@ function EventWeek6PageContent() {
                       disabled={readonly || !newStepLabel.trim()}
                       className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm"
                     >
-                      추가
+                      {T.addButton || 'Add'}
                     </button>
                     <button
                       type="button"
@@ -1024,7 +1060,7 @@ function EventWeek6PageContent() {
                       }}
                       className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors text-sm"
                     >
-                      취소
+                      {T.cancel || 'Cancel'}
                     </button>
                   </div>
                 )}
@@ -1046,7 +1082,7 @@ function EventWeek6PageContent() {
                                 value={step.label}
                                 onChange={(e) => updateJourneyStep(step.id, 'label', e.target.value)}
                                 className="w-full px-2 py-1 text-sm font-semibold text-gray-900 border border-transparent rounded focus:border-indigo-300 focus:ring-1 focus:ring-indigo-500"
-                                placeholder="단계명"
+                                placeholder={T.stepName}
                               />
                             )}
                           </div>
@@ -1074,7 +1110,7 @@ function EventWeek6PageContent() {
                         {/* 행동 */}
                         <div>
                           <label className="block text-xs font-medium text-gray-700 mb-2">
-                            행동 (Action)
+                            {T.action} (Action)
                           </label>
                           <textarea
                             value={step.action}
@@ -1089,7 +1125,7 @@ function EventWeek6PageContent() {
                         {/* 감정 */}
                         <div>
                           <label className="block text-xs font-medium text-gray-700 mb-2">
-                            감정 (Emotion)
+                            {T.emotion} (Emotion)
                           </label>
                           <div className="grid grid-cols-3 gap-2 mb-2">
                             {EMOTION_OPTIONS.map((emotion) => (
@@ -1116,14 +1152,14 @@ function EventWeek6PageContent() {
                             }
                             disabled
                             className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-xs text-gray-500 cursor-not-allowed"
-                            placeholder="감정을 선택하세요"
+                            placeholder={T.selectEmotion || 'Select emotion'}
                           />
                         </div>
 
                         {/* 접점 */}
                         <div>
                           <label className="block text-xs font-medium text-gray-700 mb-2">
-                            접점 (Touchpoint)
+                            {T.touchpoint} (Touchpoint)
                           </label>
                           <textarea
                             value={step.touchpoint}
@@ -1140,7 +1176,7 @@ function EventWeek6PageContent() {
                     <div className="border-t border-gray-200 pt-4 mt-4 space-y-4">
                       <div className="flex items-end gap-3">
                         <div className="flex items-center gap-2">
-                          <label className="text-xs font-medium text-gray-700 whitespace-nowrap">예상체류시간</label>
+                          <label className="text-xs font-medium text-gray-700 whitespace-nowrap">{T.expectedStayTime}</label>
                           <input
                             type="text"
                             value={step.duration}
@@ -1195,7 +1231,7 @@ function EventWeek6PageContent() {
                           ) : (
                             <div className="w-4 h-4 border-2 border-gray-400 rounded flex-shrink-0" />
                           )}
-                          <span>병목구간</span>
+                          <span>{T.bottleneckCheck}</span>
                         </button>
                       </div>
 
@@ -1203,7 +1239,7 @@ function EventWeek6PageContent() {
                       {step.isBottleneck && (
                         <div className="space-y-3">
                           <label className="block text-xs font-medium text-gray-700">
-                            해결 방안 선택
+                            {T.bottleneckSolutions}
                           </label>
                           <div className="flex flex-wrap gap-2">
                             {SOLUTION_IDEAS.map((idea, idx) => {
@@ -1221,15 +1257,16 @@ function EventWeek6PageContent() {
                                     const selectedSolutions = currentStep.selectedSolutions || []
                                     let newSelectedSolutions: string[]
                                     
-                                    if (idea === '기타') {
+                                    const otherLabel = T.other
+                                    if (idea === '기타' || idea === otherLabel || idea === 'Other') {
                                       // 기타는 토글 방식
-                                      if (selectedSolutions.includes('기타')) {
-                                        newSelectedSolutions = selectedSolutions.filter(s => s !== '기타')
+                                      if (selectedSolutions.includes('기타') || selectedSolutions.includes(otherLabel) || selectedSolutions.includes('Other')) {
+                                        newSelectedSolutions = selectedSolutions.filter((s: string) => s !== '기타' && s !== otherLabel && s !== 'Other')
                                         // 기타 해제 시 customSolution도 초기화
                                         setJourneySteps(journeySteps.map((s) => {
                                           if (s.id === step.id) {
                                             const solutions = newSelectedSolutions
-                                              .filter(s => s !== '기타')
+                                              .filter((s: string) => s !== '기타' && s !== otherLabel && s !== 'Other')
                                             return {
                                               ...s,
                                               selectedSolutions: newSelectedSolutions,
@@ -1241,12 +1278,12 @@ function EventWeek6PageContent() {
                                         }))
                                         return
                                       } else {
-                                        newSelectedSolutions = [...selectedSolutions, '기타']
+                                        newSelectedSolutions = [...selectedSolutions.filter((s: string) => s !== '기타' && s !== otherLabel && s !== 'Other'), otherLabel]
                                       }
                                     } else {
                                       // 다른 옵션들은 다중 선택 가능 (토글 방식)
                                       if (selectedSolutions.includes(idea)) {
-                                        newSelectedSolutions = selectedSolutions.filter(s => s !== idea)
+                                        newSelectedSolutions = selectedSolutions.filter((s: string) => s !== idea)
                                       } else {
                                         newSelectedSolutions = [...selectedSolutions, idea]
                                       }
@@ -1256,8 +1293,8 @@ function EventWeek6PageContent() {
                                     setJourneySteps(journeySteps.map((s) => {
                                       if (s.id === step.id) {
                                         const solutions = newSelectedSolutions
-                                          .filter(sol => sol !== '기타')
-                                          .concat(newSelectedSolutions.includes('기타') && currentStep.customSolution ? [currentStep.customSolution] : [])
+                                          .filter((sol: string) => sol !== '기타' && sol !== otherLabel && sol !== 'Other')
+                                          .concat((newSelectedSolutions.includes('기타') || newSelectedSolutions.includes(otherLabel) || newSelectedSolutions.includes('Other')) && currentStep.customSolution ? [currentStep.customSolution] : [])
                                         return {
                                           ...s,
                                           selectedSolutions: newSelectedSolutions,
@@ -1285,10 +1322,13 @@ function EventWeek6PageContent() {
                             })}
                           </div>
                           
-                          {(step.selectedSolutions || []).includes('기타') && (
+                          {(step.selectedSolutions || []).some((sol: string) => {
+                            const otherLabel = T.other
+                            return sol === '기타' || sol === otherLabel || sol === 'Other'
+                          }) && (
                             <div>
                               <label className="block text-xs text-gray-600 mb-2">
-                                기타 의견 입력
+                                {T.customSolutionPlaceholder}
                               </label>
                               <textarea
                                 value={step.customSolution || ''}
@@ -1298,8 +1338,9 @@ function EventWeek6PageContent() {
                                   
                                   const customValue = e.target.value
                                   const selectedSolutions = currentStep.selectedSolutions || []
+                                  const otherLabel = T.other
                                   const solutions = selectedSolutions
-                                    .filter(s => s !== '기타')
+                                    .filter((s: string) => s !== '기타' && s !== otherLabel && s !== 'Other')
                                     .concat(customValue ? [customValue] : [])
                                   
                                   setJourneySteps(journeySteps.map((s) => {
@@ -1315,7 +1356,7 @@ function EventWeek6PageContent() {
                                 }}
                                 disabled={readonly}
                                 rows={2}
-                                placeholder="의견을 입력하세요"
+                                placeholder={T.customSolutionPlaceholder}
                                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm resize-none disabled:bg-gray-100 disabled:cursor-not-allowed"
                               />
                             </div>

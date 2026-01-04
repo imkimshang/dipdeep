@@ -1,5 +1,9 @@
+'use client'
+
 import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/utils/supabase/client'
+import { useLanguage } from '@/contexts/LanguageContext'
+import { EVENT_TRANSLATIONS, WEBAPP_TRANSLATIONS, GLOBAL_UI } from '@/i18n/translations'
 
 export interface StepStatus {
   hasData: boolean
@@ -7,26 +11,12 @@ export interface StepStatus {
   progress: number
 }
 
-const WEEK_TITLES: { [key: number]: string } = {
-  1: 'Phase 1 - 문제 발견과 목표 설정',
-  2: 'Phase 1 - 데이터 탐색 및 교차 검증',
-  3: 'Phase 1 - 가상 페르소나 설정 및 설문 설계',
-  4: 'Phase 1 - 문제 정의',
-  5: 'Phase 2 - 인사이트 도출',
-  6: 'Phase 2 - 의미 탐구',
-  7: 'Phase 2 - 패턴 분석',
-  8: 'Phase 2 - 핵심 가치 발견',
-  9: 'Phase 3 - 프로토타입 기획',
-  10: 'Phase 3 - 프로토타입 설계',
-  11: 'Phase 3 - 프로토타입 구현',
-  12: 'Phase 3 - 검증과 개선',
-}
-
 // 전역 진행률 계산 함수 저장소 (모든 회차 공유)
 const globalProgressCalculators: { [key: number]: (data: any) => number } = {}
 
-export function useWorkbookNavigation(projectId: string) {
+export function useWorkbookNavigation(projectId: string, projectType?: 'event' | 'webapp' | 'product') {
   const supabase = createClient()
+  const { language } = useLanguage()
   const [allSteps, setAllSteps] = useState<any[]>([])
   const [isScrolled, setIsScrolled] = useState(false)
 
@@ -61,8 +51,11 @@ export function useWorkbookNavigation(projectId: string) {
   }, [loadSteps])
 
   const getWeekTitle = useCallback((week: number): string => {
-    return WEEK_TITLES[week] || `Week ${week}`
-  }, [])
+    // 사이드바는 항상 영어로 표시 (Global Shell)
+    const titles = projectType === 'event' ? EVENT_TRANSLATIONS.en.titles : WEBAPP_TRANSLATIONS.en.titles
+    const title = titles[week - 1] || `Week ${week}`
+    return title
+  }, [projectType])
 
   // 진행률 계산 함수 등록 (전역 저장소에 저장)
   const registerProgressCalculator = useCallback((stepNumber: number, calculator: (data: any) => number) => {

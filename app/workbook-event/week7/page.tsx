@@ -26,19 +26,25 @@ import { ProjectSettingsModal } from '@/components/workbook/ProjectSettingsModal
 import { ProjectSummaryModal } from '@/components/workbook/ProjectSummaryModal'
 import { WorkbookStatusBar } from '@/components/WorkbookStatusBar'
 import { useProjectAccess } from '@/hooks/useProjectAccess'
+import { useWorkbookCredit } from '@/hooks/useWorkbookCredit'
+import { EVENT_TRANSLATIONS } from '@/i18n/translations'
+import { useLanguage } from '@/contexts/LanguageContext'
 
 export const dynamic = 'force-dynamic'
 
-// 프로그램 카테고리
-const PROGRAM_CATEGORIES = [
-  '체험존',
-  'F&B (식음료)',
-  '무대/공연',
-  '굿즈샵',
-  '휴식존',
-  '포토존',
-  '기타',
-]
+// 프로그램 카테고리 (다국어 지원)
+const getProgramCategories = (language: 'en' | 'ko') => {
+  const categories = EVENT_TRANSLATIONS[language]?.session7?.categories || EVENT_TRANSLATIONS['ko'].session7.categories
+  return [
+    categories.experienceZone,
+    categories.fnb,
+    categories.stagePerformance,
+    categories.goodsShop,
+    categories.restZone,
+    categories.photoZone,
+    categories.other,
+  ]
+}
 
 interface ProgramCard {
   id: number
@@ -79,6 +85,10 @@ function EventWeek7PageContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const projectId = searchParams.get('projectId') || ''
+  const { language } = useLanguage()
+  const safeLanguage = language || 'ko'
+  const T = EVENT_TRANSLATIONS[safeLanguage]?.session7 || EVENT_TRANSLATIONS['ko'].session7
+  const PROGRAM_CATEGORIES = getProgramCategories(safeLanguage)
 
   // 권한 검증
   useProjectAccess(projectId)
@@ -107,6 +117,7 @@ function EventWeek7PageContent() {
     unhideProject,
   } = useProjectSettings(projectId)
   const { generateSummary } = useProjectSummary()
+  const { checkAndDeductCredit } = useWorkbookCredit(projectId, 7)
 
   // State
   const [toastVisible, setToastVisible] = useState(false)
@@ -172,7 +183,7 @@ function EventWeek7PageContent() {
   // 프로그램 삭제
   const removeProgram = (id: number) => {
     if (programs.length <= 1) {
-      setToastMessage('최소 1개의 프로그램은 유지해야 합니다.')
+      setToastMessage(T.minOneProgram)
       setToastVisible(true)
       return
     }
@@ -184,32 +195,51 @@ function EventWeek7PageContent() {
     setPrograms(programs.map((p) => (p.id === id ? { ...p, [field]: value } : p)))
   }
 
-  // AI 프롬프트 생성
+  // AI 프롬프트 생성 (언어별 프롬프트 생성)
   const generateAIPrompt = () => {
-    let prompt = `# 역할 부여
+    const isKorean = safeLanguage === 'ko'
+    let prompt = isKorean 
+      ? `# 역할 부여
 당신은 트렌디한 팝업스토어 및 페스티벌 기획 전문가입니다.
 
 # 행사 정보
+`
+      : `# Role Assignment
+You are an expert in trendy pop-up stores and festival planning.
+
+# Event Information
 `
 
     // 행사 컨셉 (4회차)
     // 타겟 페르소나 (2회차)
     if (aiIdeation.selectedPersona && week2Persona) {
-      prompt += `- 타겟 페르소나: ${week2Persona}\n`
+      prompt += isKorean 
+        ? `- 타겟 페르소나: ${week2Persona}\n`
+        : `- Target Persona: ${week2Persona}\n`
     }
 
     // 테마 무드 (5회차)
     if (aiIdeation.selectedTheme && week5ThemeKeywords.length > 0) {
-      prompt += `- 테마 무드: ${week5ThemeKeywords.join(', ')}\n`
+      prompt += isKorean
+        ? `- 테마 무드: ${week5ThemeKeywords.join(', ')}\n`
+        : `- Theme Mood: ${week5ThemeKeywords.join(', ')}\n`
     }
 
-    prompt += `
+    prompt += isKorean
+      ? `
 # 요청 사항
 위 정보를 바탕으로 방문객을 열광시킬 '킬러 콘텐츠' 아이디어 5가지를 제안해주세요.
 단순한 관람보다는 직접 참여하고 경험할 수 있는 인터랙티브한 아이디어 위주로 부탁드립니다.
 각 아이디어별로 '사람들이 휴대폰을 꺼내게 만들 바이럴 포인트'도 한 줄씩 덧붙여주세요.
 
 **답변은 1000자 이내로 작성해주세요.**`
+      : `
+# Request
+Based on the information above, please suggest 5 'killer content' ideas that will excite visitors.
+Please focus on interactive ideas that allow direct participation and experience rather than simple viewing.
+Also add one line per idea about 'viral points that make people take out their phones'.
+
+**Please write your response within 1000 characters.**`
 
     setAiIdeation({ ...aiIdeation, prompt })
     return prompt
@@ -220,10 +250,10 @@ function EventWeek7PageContent() {
     const prompt = generateAIPrompt()
     try {
       await navigator.clipboard.writeText(prompt)
-      setToastMessage('프롬프트가 클립보드에 복사되었습니다.')
+      setToastMessage(T.promptCopySuccess)
       setToastVisible(true)
     } catch (error) {
-      setToastMessage('복사 실패')
+      setToastMessage(T.copyFailed)
       setToastVisible(true)
     }
   }
@@ -296,6 +326,15 @@ function EventWeek7PageContent() {
       return
     }
 
+    // 최초 1회 저장 시 크레딧 차감
+    try {
+      await checkAndDeductCredit()
+    } catch (error: any) {
+      setToastMessage(error.message || '크레딧 차감 중 오류가 발생했습니다.')
+      setToastVisible(true)
+      return
+    }
+
     const eventData: EventWeek7Data = {
       programs,
       viralTrigger: {
@@ -342,6 +381,17 @@ function EventWeek7PageContent() {
       )
     ) {
       return
+    }
+
+    // 제출 시에도 크레딧 차감 (저장 시 차감 안 했을 경우)
+    if (!isSubmitted) {
+      try {
+        await checkAndDeductCredit()
+      } catch (error: any) {
+        setToastMessage(error.message || '크레딧 차감 중 오류가 발생했습니다.')
+        setToastVisible(true)
+        return
+      }
     }
 
     const eventData: EventWeek7Data = {
@@ -442,7 +492,8 @@ function EventWeek7PageContent() {
       setSummaryPrompt(summary)
       setShowProjectSummary(true)
     } else {
-      setToastMessage('워크북 데이터가 없습니다.')
+      const errorMsg = safeLanguage === 'ko' ? '워크북 데이터가 없습니다.' : 'No workbook data available.'
+      setToastMessage(errorMsg)
       setToastVisible(true)
     }
   }
@@ -450,10 +501,10 @@ function EventWeek7PageContent() {
   const handleCopySummary = async () => {
     try {
       await navigator.clipboard.writeText(summaryPrompt)
-      setToastMessage('프롬프트가 클립보드에 복사되었습니다.')
+      setToastMessage(T.promptCopySuccess)
       setToastVisible(true)
     } catch (error) {
-      setToastMessage('복사 실패')
+      setToastMessage(T.copyFailed)
       setToastVisible(true)
     }
   }
@@ -600,21 +651,10 @@ function EventWeek7PageContent() {
 
   // 이벤트 워크북용 회차 제목
   const getEventWeekTitle = useCallback((week: number): string => {
-    const eventTitles: { [key: number]: string } = {
-      1: 'Phase 1 - 행사 방향성 설정 및 트렌드 헌팅',
-      2: 'Phase 1 - 타겟 페르소나',
-      3: 'Phase 1 - 레퍼런스 벤치마킹 및 정량 분석',
-      4: 'Phase 1 - 행사 개요 및 환경 분석',
-      5: 'Phase 2 - 세계관 및 스토리텔링',
-      6: 'Phase 2 - 방문객 여정 지도',
-      7: 'Phase 2 - 킬러 콘텐츠 및 바이럴 기획',
-      8: 'Phase 2 - 마스터 플랜',
-      9: 'Phase 3 - 행사 브랜딩',
-      10: 'Phase 3 - 공간 조감도',
-      11: 'Phase 3 - D-Day 통합 실행 계획',
-      12: 'Phase 3 - 최종 피칭 및 검증',
-    }
-    return eventTitles[week] || `${week}회차`
+    // 사이드바는 항상 영어 (Global Shell)
+    const titles = EVENT_TRANSLATIONS.en.titles
+    const title = titles[week - 1] || `Week ${week}`
+    return title
   }, [])
 
   const getStepStatus = (weekNumber: number) => {
@@ -662,8 +702,8 @@ function EventWeek7PageContent() {
         type={toastMessage.includes('오류') ? 'error' : 'success'}
       />
       <WorkbookHeader
-        title="Phase 2: Insight - 7회: 킬러 콘텐츠 및 바이럴 기획"
-        description="방문객을 즐겁게 할 세부 프로그램을 구체화하고, 현장에서의 경험이 자발적인 SNS 확산으로 이어지도록 바이럴 트리거를 설계합니다."
+        title={getWeekTitle(7)}
+        description={EVENT_TRANSLATIONS[safeLanguage]?.descriptions?.[6] || EVENT_TRANSLATIONS['ko'].descriptions[6]}
         phase="Phase 2: Insight"
         isScrolled={isScrolled}
         currentWeek={7}
@@ -743,9 +783,9 @@ function EventWeek7PageContent() {
                 <div className="flex items-center gap-3">
                   <Sparkles className="w-6 h-6 text-indigo-600" />
                   <div>
-                    <h2 className="text-xl font-bold text-gray-900">킬러 콘텐츠 빌더</h2>
+                    <h2 className="text-xl font-bold text-gray-900">{T.programBuilder}</h2>
                     <p className="text-sm text-gray-600 mt-1">
-                      행사장 내에서 운영될 세부 프로그램들을 카테고리별로 정리하고 구체적인 운영 방식을 기획합니다.
+                      {T.programBuilderDesc}
                     </p>
                   </div>
                 </div>
@@ -756,7 +796,7 @@ function EventWeek7PageContent() {
                   className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm"
                 >
                   <Plus className="w-4 h-4" />
-                  프로그램 추가
+                  {T.addProgram}
                 </button>
               </div>
 
@@ -765,7 +805,7 @@ function EventWeek7PageContent() {
                   <div key={program.id} className="border border-gray-200 rounded-lg p-6">
                     <div className="flex items-center justify-between mb-4">
                       <h3 className="text-sm font-semibold text-gray-900">
-                        프로그램 {index + 1}
+                        {T.program} {index + 1}
                       </h3>
                       {programs.length > 1 && (
                         <button
@@ -783,7 +823,7 @@ function EventWeek7PageContent() {
                       {/* 카테고리 */}
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">
-                          카테고리
+                          {T.programCategory}
                         </label>
                         <div className="flex flex-wrap gap-2">
                           {PROGRAM_CATEGORIES.map((category) => (
@@ -791,16 +831,17 @@ function EventWeek7PageContent() {
                               key={category}
                               type="button"
                               onClick={() => {
-                                if (category === '기타') {
-                                  if (program.category === '기타') {
+                                const otherLabel = EVENT_TRANSLATIONS[safeLanguage]?.session7?.categories?.other || EVENT_TRANSLATIONS['ko'].session7.categories.other
+                                if (category === otherLabel) {
+                                  if (program.category === otherLabel) {
                                     updateProgram(program.id, 'category', '')
                                     updateProgram(program.id, 'customCategory', '')
                                   } else {
-                                    updateProgram(program.id, 'category', '기타')
+                                    updateProgram(program.id, 'category', otherLabel)
                                   }
                                 } else {
                                   updateProgram(program.id, 'category', category)
-                                  if (program.category === '기타') {
+                                  if (program.category === otherLabel) {
                                     updateProgram(program.id, 'customCategory', '')
                                   }
                                 }
@@ -816,7 +857,7 @@ function EventWeek7PageContent() {
                             </button>
                           ))}
                         </div>
-                        {program.category === '기타' && (
+                        {program.category === (EVENT_TRANSLATIONS[safeLanguage]?.session7?.categories?.other || EVENT_TRANSLATIONS['ko'].session7.categories.other) && (
                           <div className="mt-3">
                             <input
                               type="text"
@@ -825,7 +866,7 @@ function EventWeek7PageContent() {
                                 updateProgram(program.id, 'customCategory', e.target.value)
                               }
                               disabled={readonly}
-                              placeholder="기타 카테고리를 입력하세요"
+                              placeholder={T.customCategoryPlaceholder}
                               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm disabled:bg-gray-100 disabled:cursor-not-allowed"
                             />
                           </div>
@@ -837,14 +878,14 @@ function EventWeek7PageContent() {
                         {/* 프로그램명 */}
                         <div>
                           <label className="block text-sm font-medium text-gray-700 mb-2">
-                            프로그램명 <span className="text-red-500">*</span>
+                            {T.programName} <span className="text-red-500">*</span>
                           </label>
                           <input
                             type="text"
                             value={program.name}
                             onChange={(e) => updateProgram(program.id, 'name', e.target.value)}
                             disabled={readonly}
-                            placeholder="방문객의 흥미를 끌 수 있는 매력적인 이름"
+                            placeholder={T.programNamePlaceholder}
                             className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm disabled:bg-gray-100 disabled:cursor-not-allowed"
                           />
                         </div>
@@ -852,14 +893,14 @@ function EventWeek7PageContent() {
                         {/* 목표 감정 */}
                         <div>
                           <label className="block text-sm font-medium text-gray-700 mb-2">
-                            목표 감정
+                            {T.targetEmotion}
                           </label>
                           <input
                             type="text"
                             value={program.targetEmotion}
                             onChange={(e) => updateProgram(program.id, 'targetEmotion', e.target.value)}
                             disabled={readonly}
-                            placeholder="예: 신나고, 흥미롭고, 만족스럽게"
+                            placeholder={T.targetEmotionPlaceholder}
                             className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm disabled:bg-gray-100 disabled:cursor-not-allowed"
                           />
                         </div>
@@ -870,14 +911,14 @@ function EventWeek7PageContent() {
                         {/* 상세 내용 */}
                         <div>
                           <label className="block text-sm font-medium text-gray-700 mb-2">
-                            상세 내용 <span className="text-red-500">*</span>
+                            {T.programDetail} <span className="text-red-500">*</span>
                           </label>
                           <textarea
                             value={program.description}
                             onChange={(e) => updateProgram(program.id, 'description', e.target.value)}
                             disabled={readonly}
                             rows={4}
-                            placeholder="무엇을 하는 곳인지 구체적인 설명을 작성하세요"
+                            placeholder={T.programDetailPlaceholder}
                             className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm resize-none disabled:bg-gray-100 disabled:cursor-not-allowed"
                           />
                         </div>
@@ -885,14 +926,14 @@ function EventWeek7PageContent() {
                         {/* 운영 방식 */}
                         <div>
                           <label className="block text-sm font-medium text-gray-700 mb-2">
-                            운영 방식
+                            {T.operationMethod}
                           </label>
                           <textarea
                             value={program.operation}
                             onChange={(e) => updateProgram(program.id, 'operation', e.target.value)}
                             disabled={readonly}
                             rows={4}
-                            placeholder="소요 시간, 동시 수용 인원, 필요 스태프 수 등"
+                            placeholder={T.operationMethodPlaceholder}
                             className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm resize-none disabled:bg-gray-100 disabled:cursor-not-allowed"
                           />
                         </div>
@@ -908,9 +949,9 @@ function EventWeek7PageContent() {
               <div className="flex items-center gap-3 mb-6">
                 <Share2 className="w-6 h-6 text-indigo-600" />
                 <div>
-                  <h2 className="text-xl font-bold text-gray-900">바이럴 트리거 기획</h2>
+                  <h2 className="text-xl font-bold text-gray-900">{T.viralTrigger}</h2>
                   <p className="text-sm text-gray-600 mt-1">
-                    방문객이 휴대폰을 꺼내 사진을 찍고 공유하게 만드는 '확산 장치'를 설계합니다.
+                    {T.viralTriggerDesc}
                   </p>
                 </div>
               </div>
@@ -920,32 +961,32 @@ function EventWeek7PageContent() {
                 <div>
                   <div className="flex items-center gap-2 mb-4">
                     <Camera className="w-5 h-5 text-indigo-600" />
-                    <h3 className="text-lg font-semibold text-gray-900">인증샷 스팟 (Photo Zone)</h3>
+                    <h3 className="text-lg font-semibold text-gray-900">{T.photoZone}</h3>
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
-                        비주얼 컨셉
+                        {T.visualConcept}
                       </label>
                       <textarea
                         value={photoZone.visualConcept}
                         onChange={(e) => setPhotoZone({ ...photoZone, visualConcept: e.target.value })}
                         disabled={readonly}
                         rows={4}
-                        placeholder="포토존의 형태나 연출 의도 묘사"
+                        placeholder={T.visualConceptPlaceholder}
                         className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm resize-none disabled:bg-gray-100 disabled:cursor-not-allowed"
                       />
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
-                        촬영 동기
+                        {T.photoReason}
                       </label>
                       <textarea
                         value={photoZone.why}
                         onChange={(e) => setPhotoZone({ ...photoZone, why: e.target.value })}
                         disabled={readonly}
                         rows={4}
-                        placeholder="예: 예뻐서, 웃겨서, 자랑하고 싶어서"
+                        placeholder={T.photoReasonPlaceholder}
                         className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm resize-none disabled:bg-gray-100 disabled:cursor-not-allowed"
                       />
                     </div>
@@ -956,32 +997,32 @@ function EventWeek7PageContent() {
                 <div className="border-t border-gray-200 pt-6">
                   <div className="flex items-center gap-2 mb-4">
                     <Gift className="w-5 h-5 text-indigo-600" />
-                    <h3 className="text-lg font-semibold text-gray-900">이벤트 메커니즘 (Viral Event)</h3>
+                    <h3 className="text-lg font-semibold text-gray-900">{T.eventMechanism}</h3>
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
-                        미션
+                        {T.mission}
                       </label>
                       <textarea
                         value={viralEvent.mission}
                         onChange={(e) => setViralEvent({ ...viralEvent, mission: e.target.value })}
                         disabled={readonly}
                         rows={4}
-                        placeholder="인스타그램 스토리 업로드, 해시태그 달기 등 방문객이 수행할 미션"
+                        placeholder={T.missionPlaceholder}
                         className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm resize-none disabled:bg-gray-100 disabled:cursor-not-allowed"
                       />
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
-                        리워드
+                        {T.reward}
                       </label>
                       <textarea
                         value={viralEvent.reward}
                         onChange={(e) => setViralEvent({ ...viralEvent, reward: e.target.value })}
                         disabled={readonly}
                         rows={4}
-                        placeholder="미션 수행 시 제공할 혜택 (굿즈, 할인쿠폰, 히든 스테이지 입장권 등)"
+                        placeholder={T.rewardPlaceholder}
                         className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm resize-none disabled:bg-gray-100 disabled:cursor-not-allowed"
                       />
                     </div>
@@ -995,9 +1036,9 @@ function EventWeek7PageContent() {
               <div className="flex items-center gap-3 mb-6">
                 <Lightbulb className="w-6 h-6 text-indigo-600" />
                 <div>
-                  <h2 className="text-xl font-bold text-gray-900">AI 아이데이션 스튜디오</h2>
+                  <h2 className="text-xl font-bold text-gray-900">{T.aiIdeation}</h2>
                   <p className="text-sm text-gray-600 mt-1">
-                    기획 아이디어가 막힐 때 AI의 창의성을 빌려 이색 프로그램을 추천받고 다듬는 공간입니다.
+                    {T.aiIdeationDesc}
                   </p>
                 </div>
               </div>
@@ -1008,11 +1049,11 @@ function EventWeek7PageContent() {
                   {/* 입력 정보 선택 */}
                   <div className="mb-4">
                     <label className="block text-sm font-medium text-gray-700 mb-3">
-                      AI 프롬프트
+                      {T.aiPrompt}
                     </label>
                     <div className="mb-3">
                       <label className="block text-xs font-medium text-gray-600 mb-2">
-                        선택 요소
+                        {T.selectElements}
                       </label>
                       <div className="flex flex-wrap gap-4">
                         <label className="flex items-center gap-2 cursor-pointer">
@@ -1025,9 +1066,9 @@ function EventWeek7PageContent() {
                             disabled={readonly}
                             className="w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500 disabled:opacity-50"
                           />
-                          <span className="text-sm text-gray-700">2회차 타겟 페르소나</span>
+                          <span className="text-sm text-gray-700">{T.personaWeek2}</span>
                           {week2Persona && (
-                            <span className="text-xs text-gray-500">(데이터 있음)</span>
+                            <span className="text-xs text-gray-500">{T.dataExists}</span>
                           )}
                         </label>
                         <label className="flex items-center gap-2 cursor-pointer">
@@ -1040,7 +1081,7 @@ function EventWeek7PageContent() {
                             disabled={readonly}
                             className="w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500 disabled:opacity-50"
                           />
-                          <span className="text-sm text-gray-700">5회차 테마 키워드</span>
+                          <span className="text-sm text-gray-700">{T.themeKeywordWeek5}</span>
                           {week5ThemeKeywords.length > 0 && (
                             <span className="text-xs text-gray-500">
                               ({week5ThemeKeywords.join(', ')})
@@ -1056,7 +1097,7 @@ function EventWeek7PageContent() {
                     <div className="flex flex-col h-full">
                       <div className="mb-2">
                         <label className="block text-sm font-medium text-gray-700 mb-2">
-                          AI 프롬프트
+                          {T.aiPrompt}
                         </label>
                       </div>
                       <textarea
@@ -1064,7 +1105,7 @@ function EventWeek7PageContent() {
                         onChange={(e) => setAiIdeation({ ...aiIdeation, prompt: e.target.value })}
                         disabled={readonly}
                         rows={10}
-                        placeholder="프롬프트 생성 버튼을 클릭하면 자동으로 생성됩니다. 필요시 수정할 수 있습니다."
+                        placeholder={T.promptPlaceholder}
                         className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm resize-none disabled:bg-gray-100 disabled:cursor-not-allowed font-mono flex-1"
                       />
                     </div>
@@ -1073,7 +1114,7 @@ function EventWeek7PageContent() {
                     <div className="flex flex-col h-full">
                       <div className="mb-2">
                         <label className="block text-sm font-medium text-gray-700 mb-2">
-                          결과 에디터
+                          {T.resultEditor}
                         </label>
                       </div>
                       <textarea
@@ -1081,7 +1122,7 @@ function EventWeek7PageContent() {
                         onChange={(e) => setAiIdeation({ ...aiIdeation, result: e.target.value })}
                         disabled={readonly}
                         rows={10}
-                        placeholder="AI 제안 아이디어를 붙여넣거나 직접 작성하세요..."
+                        placeholder={T.resultPlaceholder}
                         className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm resize-none disabled:bg-gray-100 disabled:cursor-not-allowed flex-1"
                       />
                     </div>
@@ -1097,7 +1138,7 @@ function EventWeek7PageContent() {
                       disabled={readonly}
                       className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm"
                     >
-                      프롬프트 생성
+                      {T.generatePrompt}
                     </button>
                     <button
                       type="button"
@@ -1105,10 +1146,10 @@ function EventWeek7PageContent() {
                       disabled={readonly || !aiIdeation.prompt}
                       className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm"
                     >
-                      프롬프트 복사
+                      {T.copyPrompt}
                     </button>
                     <p className="text-xs text-gray-500 ml-2">
-                      생성된 프롬프트를 복사하여 ChatGPT 등 AI 도구에 입력하세요.
+                      {T.promptCopyGuide}
                     </p>
                   </div>
                 </div>

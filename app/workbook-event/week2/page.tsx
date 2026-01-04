@@ -29,21 +29,27 @@ import { ProjectSettingsModal } from '@/components/workbook/ProjectSettingsModal
 import { ProjectSummaryModal } from '@/components/workbook/ProjectSummaryModal'
 import { WorkbookStatusBar } from '@/components/WorkbookStatusBar'
 import { useProjectAccess } from '@/hooks/useProjectAccess'
+import { useWorkbookCredit } from '@/hooks/useWorkbookCredit'
 import { createClient } from '@/utils/supabase/client'
+import { EVENT_TRANSLATIONS } from '@/i18n/translations'
+import { useLanguage } from '@/contexts/LanguageContext'
 
 export const dynamic = 'force-dynamic'
 
-// 방문 동기 옵션
-const VISIT_MOTIVATIONS = [
-  '인스타그램 인증샷',
-  '한정판 굿즈 구매',
-  '데이트',
-  '친구와 추억 만들기',
-  '새로운 경험',
-  '컬처/트렌드 체감',
-  '아티스트/브랜드 팬',
-  '기타',
-]
+// 방문 동기 옵션 (다국어 지원)
+const getVisitMotivations = (language: 'en' | 'ko') => {
+  const motivations = EVENT_TRANSLATIONS[language].session2.visitMotivations
+  return [
+    motivations.instagram,
+    motivations.limitedGoods,
+    motivations.date,
+    motivations.memories,
+    motivations.newExperience,
+    motivations.culture,
+    motivations.fan,
+    motivations.other,
+  ]
+}
 
 interface PersonaCard {
   id: number
@@ -77,6 +83,9 @@ function EventWeek2PageContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const projectId = searchParams.get('projectId') || ''
+  const { language } = useLanguage()
+  const T = EVENT_TRANSLATIONS[language].session2
+  const VISIT_MOTIVATIONS = getVisitMotivations(language)
 
   // 권한 검증
   useProjectAccess(projectId)
@@ -105,6 +114,7 @@ function EventWeek2PageContent() {
     unhideProject,
   } = useProjectSettings(projectId)
   const { generateSummary } = useProjectSummary()
+  const { checkAndDeductCredit } = useWorkbookCredit(projectId, 2)
 
   // State
   const [toastVisible, setToastVisible] = useState(false)
@@ -393,6 +403,15 @@ function EventWeek2PageContent() {
       return
     }
 
+    // 최초 1회 저장 시 크레딧 차감
+    try {
+      await checkAndDeductCredit()
+    } catch (error: any) {
+      setToastMessage(error.message || '크레딧 차감 중 오류가 발생했습니다.')
+      setToastVisible(true)
+      return
+    }
+
     // 각 페르소나의 기타 동기 처리
     const processedPersonas = personas.map((persona) => {
       const finalMotivations =
@@ -456,6 +475,17 @@ function EventWeek2PageContent() {
       )
     ) {
       return
+    }
+
+    // 제출 시에도 크레딧 차감 (저장 시 차감 안 했을 경우)
+    if (!isSubmitted) {
+      try {
+        await checkAndDeductCredit()
+      } catch (error: any) {
+        setToastMessage(error.message || '크레딧 차감 중 오류가 발생했습니다.')
+        setToastVisible(true)
+        return
+      }
     }
 
     // 각 페르소나의 기타 동기 처리
@@ -624,10 +654,11 @@ function EventWeek2PageContent() {
         if ((eventData as any).profile && !eventData.personas) {
           const oldData = eventData as any
           const motivations = oldData.profile.visitMotivation || []
+          const allMotivations = [...getVisitMotivations('ko'), ...getVisitMotivations('en'), '기타', 'Other']
           const standardMotivations = motivations.filter((m: string) =>
-            VISIT_MOTIVATIONS.includes(m)
+            allMotivations.includes(m)
           )
-          const customMotivations = motivations.filter((m: string) => !VISIT_MOTIVATIONS.includes(m))
+          const customMotivations = motivations.filter((m: string) => !allMotivations.includes(m))
 
           setPersonas([
             {
@@ -657,10 +688,11 @@ function EventWeek2PageContent() {
           // 각 페르소나의 방문 동기 처리
           const processedPersonas = eventData.personas.map((persona) => {
             const motivations = persona.profile.visitMotivation || []
+            const allMotivations = [...getVisitMotivations('ko'), ...getVisitMotivations('en'), '기타', 'Other']
             const standardMotivations = motivations.filter((m: string) =>
-              VISIT_MOTIVATIONS.includes(m)
+              allMotivations.includes(m)
             )
-            const customMotivations = motivations.filter((m: string) => !VISIT_MOTIVATIONS.includes(m))
+            const customMotivations = motivations.filter((m: string) => !allMotivations.includes(m))
 
             return {
               ...persona,
@@ -707,10 +739,11 @@ function EventWeek2PageContent() {
             if ((eventData as any).profile && !eventData.personas) {
               const oldData = eventData as any
               const motivations = oldData.profile.visitMotivation || []
+              const allMotivations = [...getVisitMotivations('ko'), ...getVisitMotivations('en'), '기타', 'Other']
               const standardMotivations = motivations.filter((m: string) =>
-                VISIT_MOTIVATIONS.includes(m)
+                allMotivations.includes(m)
               )
-              const customMotivations = motivations.filter((m: string) => !VISIT_MOTIVATIONS.includes(m))
+              const customMotivations = motivations.filter((m: string) => !allMotivations.includes(m))
 
               setPersonas([
                 {
@@ -740,10 +773,11 @@ function EventWeek2PageContent() {
               // 각 페르소나의 방문 동기 처리
               const processedPersonas = eventData.personas.map((persona) => {
                 const motivations = persona.profile.visitMotivation || []
+                const allMotivations = [...getVisitMotivations('ko'), ...getVisitMotivations('en'), '기타', 'Other']
                 const standardMotivations = motivations.filter((m: string) =>
-                  VISIT_MOTIVATIONS.includes(m)
+                  allMotivations.includes(m)
                 )
-                const customMotivations = motivations.filter((m: string) => !VISIT_MOTIVATIONS.includes(m))
+                const customMotivations = motivations.filter((m: string) => !allMotivations.includes(m))
 
                 return {
                   ...persona,
@@ -775,21 +809,10 @@ function EventWeek2PageContent() {
 
   // 이벤트 워크북용 회차 제목
   const getEventWeekTitle = useCallback((week: number): string => {
-    const eventTitles: { [key: number]: string } = {
-      1: 'Phase 1 - 행사 방향성 설정 및 트렌드 헌팅',
-      2: 'Phase 1 - 타겟 페르소나',
-      3: 'Phase 1 - 레퍼런스 벤치마킹 및 정량 분석',
-      4: 'Phase 1 - 행사 개요 및 환경 분석',
-      5: 'Phase 2 - 세계관 및 스토리텔링',
-      6: 'Phase 2 - 방문객 여정 지도',
-      7: 'Phase 2 - 킬러 콘텐츠 및 바이럴 기획',
-      8: 'Phase 2 - 마스터 플랜',
-      9: 'Phase 3 - 행사 브랜딩',
-      10: 'Phase 3 - 공간 조감도',
-      11: 'Phase 3 - D-Day 통합 실행 계획',
-      12: 'Phase 3 - 최종 피칭 및 검증',
-    }
-    return eventTitles[week] || `${week}회차`
+    // 사이드바는 항상 영어 (Global Shell)
+    const titles = EVENT_TRANSLATIONS.en.titles
+    const title = titles[week - 1] || `Week ${week}`
+    return title
   }, [])
 
   const getStepStatus = (weekNumber: number) => {
@@ -910,17 +933,17 @@ function EventWeek2PageContent() {
                 <div className="flex items-start gap-3">
                   <div className="flex-shrink-0">
                     <span className="inline-flex items-center px-2.5 py-1 bg-gray-600 text-white text-xs font-medium rounded">
-                      참고
+                      {T.referenceLabel}
                     </span>
                   </div>
                   <div className="flex-1">
                     <h3 className="font-semibold text-gray-900 mb-1 flex items-center gap-2">
                       <Info className="w-4 h-4 text-gray-600" />
-                      1회차 참고 정보
+                      {T.referenceInfo}
                     </h3>
-                    <p className="text-sm text-gray-700 mb-1">행사 목적: {eventGoals.join(', ')}</p>
+                    <p className="text-sm text-gray-700 mb-1">{T.eventGoals}: {eventGoals.join(', ')}</p>
                     <p className="text-xs text-gray-600">
-                      이 목적을 바탕으로 타겟팅의 일관성을 유지해주세요.
+                      {T.consistencyMessage}
                     </p>
                   </div>
                 </div>
@@ -943,7 +966,7 @@ function EventWeek2PageContent() {
                         </div>
                         <div>
                           <h3 className="text-lg font-bold text-gray-900">
-                            {persona.profile.name || `페르소나 ${personaIndex + 1}`}
+                            {persona.profile.name || `${T.persona} ${personaIndex + 1}`}
                           </h3>
                           {persona.profile.name && (
                             <p className="text-sm text-gray-600">
@@ -956,7 +979,7 @@ function EventWeek2PageContent() {
                         <button
                           onClick={() => removePersona(persona.id)}
                           className="p-2 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors"
-                          title="페르소나 삭제"
+                          title={T.removePersona}
                         >
                           <Trash2 className="w-5 h-5" />
                         </button>
@@ -971,14 +994,14 @@ function EventWeek2PageContent() {
                       <div className="space-y-4">
                         <div className="flex items-center gap-2 mb-4">
                           <User className="w-5 h-5 text-indigo-600" />
-                          <h4 className="font-semibold text-gray-900">프로필 정보</h4>
+                          <h4 className="font-semibold text-gray-900">{T.profileInfo}</h4>
                         </div>
                         
                         {/* 기본 정보 */}
                         <div className="space-y-3">
                           <div>
                             <label className="block text-xs font-medium text-gray-700 mb-1">
-                              이름 <span className="text-red-500">*</span>
+                              {T.personaName} <span className="text-red-500">*</span>
                             </label>
                             <input
                               type="text"
@@ -990,13 +1013,13 @@ function EventWeek2PageContent() {
                                 })
                               }
                               disabled={readonly}
-                              placeholder="예: 김민수"
+                              placeholder={T.placeholders.name}
                               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm disabled:bg-gray-100 disabled:cursor-not-allowed"
                             />
                           </div>
                           <div>
                             <label className="block text-xs font-medium text-gray-700 mb-1">
-                              나이 <span className="text-red-500">*</span>
+                              {T.personaAge} <span className="text-red-500">*</span>
                             </label>
                             <input
                               type="text"
@@ -1008,13 +1031,13 @@ function EventWeek2PageContent() {
                                 })
                               }
                               disabled={readonly}
-                              placeholder="예: 28세"
+                              placeholder={T.placeholders.age}
                               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm disabled:bg-gray-100 disabled:cursor-not-allowed"
                             />
                           </div>
                           <div>
                             <label className="block text-xs font-medium text-gray-700 mb-1">
-                              직업 <span className="text-red-500">*</span>
+                              {T.personaJob} <span className="text-red-500">*</span>
                             </label>
                             <input
                               type="text"
@@ -1026,7 +1049,7 @@ function EventWeek2PageContent() {
                                 })
                               }
                               disabled={readonly}
-                              placeholder="예: 마케터"
+                              placeholder={T.placeholders.job}
                               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm disabled:bg-gray-100 disabled:cursor-not-allowed"
                             />
                           </div>
@@ -1035,7 +1058,7 @@ function EventWeek2PageContent() {
                         {/* 라이프스타일 태그 */}
                         <div>
                           <label className="block text-xs font-medium text-gray-700 mb-2">
-                            라이프스타일 태그
+                            {T.personaLifestyle}
                           </label>
                           <div className="flex gap-2 mb-2">
                             <input
@@ -1061,12 +1084,12 @@ function EventWeek2PageContent() {
                                 }
                               }}
                               disabled={readonly}
-                              placeholder="태그 입력 후 Enter"
+                              placeholder={T.placeholders.lifestyleTag}
                               className="flex-1 px-2 py-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-xs disabled:bg-gray-100 disabled:cursor-not-allowed"
                             />
                           </div>
                           <p className="text-xs text-gray-500 mb-2">
-                            <kbd className="px-1.5 py-0.5 bg-gray-100 border border-gray-300 rounded text-xs">Enter</kbd> 키로 추가
+                            <kbd className="px-1.5 py-0.5 bg-gray-100 border border-gray-300 rounded text-xs">Enter</kbd> {T.tagGuide}
                           </p>
                           {persona.profile.lifestyleTags.length > 0 && (
                             <div className="flex flex-wrap gap-1.5">
@@ -1094,10 +1117,10 @@ function EventWeek2PageContent() {
                         {/* 방문 동기 */}
                         <div>
                           <label className="block text-xs font-medium text-gray-700 mb-2">
-                            방문 동기 <span className="text-red-500">*</span>
+                            {T.personaVisitReason} <span className="text-red-500">*</span>
                           </label>
                           <div className="flex flex-wrap gap-1.5">
-                            {VISIT_MOTIVATIONS.map((motivation) => (
+                            {VISIT_MOTIVATIONS.map((motivation: string) => (
                               <button
                                 key={motivation}
                                 type="button"
@@ -1125,7 +1148,7 @@ function EventWeek2PageContent() {
                                   })
                                 }
                                 disabled={readonly}
-                                placeholder="기타 방문 동기"
+                                placeholder={T.placeholders.customMotivation}
                                 className="w-full px-2 py-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-xs disabled:bg-gray-100 disabled:cursor-not-allowed"
                               />
                             </div>
@@ -1137,7 +1160,7 @@ function EventWeek2PageContent() {
                       <div className="space-y-4">
                         <div className="flex items-center gap-2 mb-4">
                           <Sliders className="w-5 h-5 text-indigo-600" />
-                          <h4 className="font-semibold text-gray-900">행동 패턴</h4>
+                          <h4 className="font-semibold text-gray-900">{T.behaviorPattern}</h4>
                         </div>
 
                         <div className="space-y-4">
@@ -1146,7 +1169,7 @@ function EventWeek2PageContent() {
                             <div className="flex items-center justify-between mb-1">
                               <label className="text-xs font-medium text-gray-700 flex items-center gap-1">
                                 <ShoppingBag className="w-3 h-3" />
-                                굿즈 구매
+                                {T.goodsPurchase}
                               </label>
                               <span className="text-sm font-bold text-indigo-600">
                                 {persona.behaviorPattern.goodsPurchase}%
@@ -1167,8 +1190,8 @@ function EventWeek2PageContent() {
                               className="w-full h-2 bg-gradient-to-r from-gray-200 via-indigo-200 to-indigo-400 rounded-lg appearance-none cursor-pointer accent-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed"
                             />
                             <div className="flex justify-between text-xs text-gray-500 mt-0.5">
-                              <span>구경</span>
-                              <span>구매</span>
+                              <span>{T.sliderLabels.browse}</span>
+                              <span>{T.sliderLabels.purchase}</span>
                             </div>
                           </div>
 
@@ -1177,7 +1200,7 @@ function EventWeek2PageContent() {
                             <div className="flex items-center justify-between mb-1">
                               <label className="text-xs font-medium text-gray-700 flex items-center gap-1">
                                 <Camera className="w-3 h-3" />
-                                포토존
+                                {T.photoZone}
                               </label>
                               <span className="text-sm font-bold text-indigo-600">
                                 {persona.behaviorPattern.photoZonePreference}%
@@ -1198,8 +1221,8 @@ function EventWeek2PageContent() {
                               className="w-full h-2 bg-gradient-to-r from-gray-200 via-indigo-200 to-indigo-400 rounded-lg appearance-none cursor-pointer accent-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed"
                             />
                             <div className="flex justify-between text-xs text-gray-500 mt-0.5">
-                              <span>감상</span>
-                              <span>필수</span>
+                              <span>{T.sliderLabels.appreciation}</span>
+                              <span>{T.sliderLabels.essential}</span>
                             </div>
                           </div>
 
@@ -1208,7 +1231,7 @@ function EventWeek2PageContent() {
                             <div className="flex items-center justify-between mb-1">
                               <label className="text-xs font-medium text-gray-700 flex items-center gap-1">
                                 <Clock className="w-3 h-3" />
-                                체류 시간
+                                {T.stayTime}
                               </label>
                               <span className="text-sm font-bold text-indigo-600">
                                 {persona.behaviorPattern.stayDuration}%
@@ -1229,8 +1252,8 @@ function EventWeek2PageContent() {
                               className="w-full h-2 bg-gradient-to-r from-gray-200 via-indigo-200 to-indigo-400 rounded-lg appearance-none cursor-pointer accent-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed"
                             />
                             <div className="flex justify-between text-xs text-gray-500 mt-0.5">
-                              <span>짧게</span>
-                              <span>길게</span>
+                              <span>{T.sliderLabels.short}</span>
+                              <span>{T.sliderLabels.long}</span>
                             </div>
                           </div>
 
@@ -1239,7 +1262,7 @@ function EventWeek2PageContent() {
                             <div className="flex items-center justify-between mb-1">
                               <label className="text-xs font-medium text-gray-700 flex items-center gap-1">
                                 <Users className="w-3 h-3" />
-                                동반인
+                                {T.companionType}
                               </label>
                               <span className="text-sm font-bold text-indigo-600">
                                 {persona.behaviorPattern.companionType}%
@@ -1260,14 +1283,14 @@ function EventWeek2PageContent() {
                               className="w-full h-2 bg-gradient-to-r from-gray-200 via-indigo-200 to-indigo-400 rounded-lg appearance-none cursor-pointer accent-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed"
                             />
                             <div className="flex justify-between text-xs text-gray-500 mt-0.5">
-                              <span>혼자</span>
-                              <span>가족</span>
+                              <span>{T.sliderLabels.alone}</span>
+                              <span>{T.sliderLabels.family}</span>
                             </div>
                           </div>
 
                           {/* 페르소나 키워드 */}
                           <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-2 mt-3">
-                            <h5 className="text-xs font-semibold text-indigo-900 mb-1.5">키워드</h5>
+                            <h5 className="text-xs font-semibold text-indigo-900 mb-1.5">{T.keywords}</h5>
                             <div className="flex flex-wrap gap-1">
                               {getPersonaKeywords(persona).map((keyword, index) => (
                                 <span
@@ -1286,7 +1309,7 @@ function EventWeek2PageContent() {
                       <div className="space-y-4">
                         <div className="flex items-center gap-2 mb-4">
                           <FileText className="w-5 h-5 text-indigo-600" />
-                          <h4 className="font-semibold text-gray-900">행동 시나리오</h4>
+                          <h4 className="font-semibold text-gray-900">{T.behaviorScenario}</h4>
                         </div>
 
                         <div className="space-y-4">
@@ -1296,7 +1319,7 @@ function EventWeek2PageContent() {
                               <span className="w-5 h-5 rounded-full bg-indigo-600 text-white flex items-center justify-center text-xs font-bold">
                                 1
                               </span>
-                              방문 전 (Before)
+                              {T.beforeVisit}
                             </label>
                             <textarea
                               value={persona.behaviorScenario.before}
@@ -1319,7 +1342,7 @@ function EventWeek2PageContent() {
                               <span className="w-5 h-5 rounded-full bg-indigo-600 text-white flex items-center justify-center text-xs font-bold">
                                 2
                               </span>
-                              방문 중 (During)
+                              {T.duringVisit}
                             </label>
                             <textarea
                               value={persona.behaviorScenario.during}
@@ -1342,7 +1365,7 @@ function EventWeek2PageContent() {
                               <span className="w-5 h-5 rounded-full bg-indigo-600 text-white flex items-center justify-center text-xs font-bold">
                                 3
                               </span>
-                              방문 후 (After)
+                              {T.afterVisit}
                             </label>
                             <textarea
                               value={persona.behaviorScenario.after}
@@ -1372,7 +1395,7 @@ function EventWeek2PageContent() {
                   className="w-full py-4 px-6 border-2 border-dashed border-gray-300 rounded-xl hover:border-indigo-400 hover:bg-indigo-50 transition-colors flex items-center justify-center gap-2 text-gray-600 hover:text-indigo-600 font-medium"
                 >
                   <Plus className="w-5 h-5" />
-                  페르소나 추가
+                  {T.addPersona}
                 </button>
               )}
             </div>

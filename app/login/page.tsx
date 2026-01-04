@@ -42,6 +42,19 @@ function LoginForm() {
         
         if (error) {
           console.error('로그인 오류:', error)
+          
+          // 이메일 미확인 오류 처리
+          if (error.message?.includes('Email not confirmed') || error.message?.includes('email not confirmed')) {
+            alert(
+              "이메일 확인이 필요합니다.\n\n" +
+              "가입 시 발송된 확인 이메일의 링크를 클릭해주세요.\n\n" +
+              "이메일을 받지 못하셨다면, 스팸 폴더를 확인하거나\n" +
+              "다시 회원가입을 시도해주세요."
+            )
+            setError("이메일 확인이 필요합니다. 확인 이메일의 링크를 클릭해주세요.")
+            throw error
+          }
+          
           throw error
         }
         
@@ -73,9 +86,14 @@ function LoginForm() {
         }
       } else {
         // 1. Supabase Auth에 계정 생성
+        // 이메일 확인 링크의 리다이렉트 URL 설정
+        const redirectTo = `${window.location.origin}/auth/callback`
         const { data, error } = await supabase.auth.signUp({
           email,
           password,
+          options: {
+            emailRedirectTo: redirectTo,
+          },
         })
 
         if (error) {
@@ -102,16 +120,31 @@ function LoginForm() {
 
         // 2. 계정 생성 성공 시, 방금 생성된 유저 ID를 가지고 profiles 테이블에 추가 정보 저장
         if (data.user) {
-          // 세션이 완전히 설정될 때까지 잠시 대기
-          await new Promise((resolve) => setTimeout(resolve, 500))
+          // 세션이 완전히 설정될 때까지 대기 (최대 5초, 더 자주 확인)
+          let sessionReady = false
+          for (let i = 0; i < 10; i++) {
+            const { data: sessionData, error: sessionError } = await supabase.auth.getSession()
+            if (sessionData?.session && sessionData.session.user?.id === data.user.id) {
+              sessionReady = true
+              console.log('세션 설정 완료, 프로필 생성 시도')
+              break
+            }
+            // 500ms마다 확인
+            await new Promise((resolve) => setTimeout(resolve, 500))
+          }
           
-          // 현재 세션 확인
-          const { data: sessionData, error: sessionError } = await supabase.auth.getSession()
-          
-          if (sessionError || !sessionData?.session) {
-            console.error('세션 확인 오류:', sessionError)
-            // 세션이 없어도 계속 진행 (RLS 정책이 auth.uid()를 사용하기 때문)
-            console.warn('세션이 아직 설정되지 않았지만 프로필 생성 시도')
+          if (!sessionReady) {
+            // 세션이 설정되지 않으면 프로필 생성을 서버 사이드에서 처리하도록 안내
+            console.error('세션 설정 실패 - 이메일 확인이 필요할 수 있습니다')
+            alert(
+              "회원가입 요청이 접수되었습니다.\n\n" +
+              (data.user.email_confirmed_at 
+                ? "프로필은 자동으로 생성됩니다. 잠시 후 다시 로그인해주세요."
+                : "이메일 확인 링크를 클릭한 후 로그인해주세요.\n프로필은 로그인 시 자동으로 생성됩니다.")
+            )
+            // 프로필 없이도 계속 진행 (나중에 로그인 시 생성됨)
+            window.location.href = '/login?mode=login'
+            return
           }
 
           // 프로필 생성 시도
@@ -138,17 +171,18 @@ function LoginForm() {
               alert(
                 "프로필 저장 권한 오류가 발생했습니다.\n\n" +
                 "Supabase SQL Editor에서 다음 파일을 실행해주세요:\n\n" +
-                "fix-profiles-rls-complete.sql\n\n" +
+                "fix-profiles-rls-final.sql\n\n" +
                 "또는 다음 SQL을 직접 실행:\n\n" +
                 "DROP POLICY IF EXISTS \"Users can insert own profile\" ON profiles;\n" +
                 "CREATE POLICY \"Users can insert own profile\"\n" +
                 "  ON profiles FOR INSERT\n" +
                 "  WITH CHECK (auth.uid() = id);"
               )
+              throw profileError
             } else {
               alert("프로필 저장 중 오류가 발생했습니다: " + profileError.message)
+              throw profileError
             }
-            throw profileError
           } else {
             alert("회원가입이 완료되었습니다!")
             // 완전한 페이지 리로드를 통해 세션을 서버에 전달

@@ -25,9 +25,9 @@ export default async function DashboardPage() {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
-          <p className="text-gray-600 mb-4">프로필을 불러올 수 없습니다.</p>
+          <p className="text-gray-600 mb-4">Unable to load profile.</p>
           <p className="text-sm text-gray-500">
-            관리자에게 문의해주세요.
+            Please contact the administrator.
           </p>
         </div>
       </div>
@@ -43,9 +43,9 @@ export default async function DashboardPage() {
       ) : (
         <div className="min-h-screen flex items-center justify-center">
           <div className="text-center">
-            <p className="text-gray-600 mb-4">역할이 설정되지 않았습니다.</p>
+            <p className="text-gray-600 mb-4">Role not set.</p>
             <p className="text-sm text-gray-500">
-              관리자에게 문의하여 역할을 설정해주세요.
+              Please contact the administrator to set your role.
             </p>
           </div>
         </div>

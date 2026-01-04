@@ -2,6 +2,9 @@
 
 import Link from 'next/link'
 import { ArrowLeft, Sparkles } from 'lucide-react'
+import { CreditBalance } from '@/components/CreditBalance'
+import { LanguageToggle } from '@/components/LanguageToggle'
+import { GLOBAL_UI } from '@/i18n/translations'
 
 interface WorkbookHeaderProps {
   title: string
@@ -62,7 +65,7 @@ export function WorkbookHeader({
             className="inline-flex items-center gap-2 text-gray-300 hover:text-white transition-all text-sm font-medium mb-4"
           >
             <ArrowLeft className="w-4 h-4" />
-            대시보드로 돌아가기
+            {GLOBAL_UI.backToDashboard}
           </Link>
         )}
         <div className={`flex items-center gap-6 ${isScrolled ? 'justify-start' : 'items-start'}`}>
@@ -71,7 +74,7 @@ export function WorkbookHeader({
             <Link
               href="/dashboard"
               className="flex-shrink-0 text-gray-300 hover:text-white transition-all"
-              title="대시보드로 돌아가기"
+              title={GLOBAL_UI.backToDashboard}
             >
               <ArrowLeft className="w-5 h-5" />
             </Link>
@@ -90,26 +93,36 @@ export function WorkbookHeader({
                 className={`font-bold text-white tracking-tight transition-all ${
                   isScrolled ? 'text-lg' : 'text-2xl'
                 }`}
+                suppressHydrationWarning
               >
                 {title}
               </h1>
             </div>
             {!isScrolled && (
               <div className="flex items-center gap-2">
-                {description && <p className="text-gray-300 text-sm">{description}</p>}
+                {description && (
+                  <p className="text-gray-300 text-sm" suppressHydrationWarning>
+                    {description}
+                  </p>
+                )}
                 {isSubmitted ? (
                   <span className="px-2 py-1 bg-green-500/20 text-green-300 border border-green-500/30 text-xs font-medium rounded-full">
-                    제출 완료
+                    Submitted
                   </span>
                 ) : (
                   <span className="px-2 py-1 bg-blue-500/20 text-blue-300 border border-blue-500/30 text-xs font-medium rounded-full">
-                    작성 중
+                    In Progress
                   </span>
                 )}
               </div>
             )}
           </div>
 
+          {/* Right: Language Toggle & Credit Balance */}
+          <div className="flex-shrink-0 flex items-center gap-3">
+            <LanguageToggle />
+            <CreditBalance />
+          </div>
         </div>
       </div>
     </header>

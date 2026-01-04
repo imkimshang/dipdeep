@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { Settings, FileDown, Users, Copy } from 'lucide-react'
 import { StepStatus } from '@/hooks/useWorkbookNavigation'
+import { GLOBAL_UI } from '@/i18n/translations'
 
 interface WorkbookNavigationProps {
   projectId: string
@@ -83,12 +84,12 @@ export function WorkbookNavigation({
           <div className="mb-4 pb-4 border-b-2 border-blue-600/50 bg-gradient-to-br from-blue-600 to-indigo-700 rounded-lg p-3 shadow-lg">
             <div className="flex items-center justify-between mb-2">
               <h4 className="text-sm font-semibold text-white truncate flex-1">
-                {projectInfo.title || '프로젝트명 없음'}
+                {projectInfo.title || 'Untitled Project'}
               </h4>
               <button
                 onClick={onSettingsClick}
                 className={`flex-shrink-0 p-1.5 text-gray-300 hover:text-white ${colors.button} rounded-lg transition-colors`}
-                title="설정"
+                title={GLOBAL_UI.projectSettings}
               >
                 <Settings className="w-4 h-4" />
               </button>
@@ -98,10 +99,10 @@ export function WorkbookNavigation({
               <div className="mt-2 flex items-center gap-2">
                 <span className="px-2.5 py-1 bg-purple-500/30 text-purple-200 text-xs font-medium rounded-full flex items-center gap-1.5 border border-purple-400/50">
                   <Users className="w-3 h-3" />
-                  <span>팀</span>
+                  <span>Team</span>
                   {projectInfo.team_code && (
                     <>
-                      <span className="text-purple-300">(코드 -</span>
+                      <span className="text-purple-300">(Code -</span>
                       <span className="font-mono font-bold">{projectInfo.team_code}</span>
                       <span className="text-purple-300">)</span>
                     </>
@@ -125,7 +126,7 @@ export function WorkbookNavigation({
                       })
                     }}
                     className="p-1 text-purple-300 hover:text-purple-100 hover:bg-purple-500/20 rounded transition-colors"
-                    title="팀 코드 복사"
+                    title="Copy Team Code"
                   >
                     <Copy className="w-3 h-3" />
                   </button>
@@ -135,7 +136,7 @@ export function WorkbookNavigation({
           </div>
         )}
 
-        <h3 className="text-xs font-semibold text-gray-700 mb-2">회차별 워크북</h3>
+        <h3 className="text-xs font-semibold text-gray-700 mb-2">{GLOBAL_UI.curriculumPath}</h3>
         <div className="flex flex-col gap-1.5">
           {Array.from({ length: 12 }, (_, i) => i + 1).map((week) => {
             const status = getStepStatus(week)
@@ -160,17 +161,17 @@ export function WorkbookNavigation({
             
             if (status.isSubmitted) {
               statusType = 'completed'
-              statusText = '완료'
+              statusText = 'Completed'
               statusColor = 'text-green-700'
               statusBg = 'bg-green-50 border-green-200'
             } else if (status.hasData) {
               statusType = 'inProgress'
-              statusText = '진행중'
+              statusText = 'In Progress'
               statusColor = 'text-blue-700'
               statusBg = 'bg-blue-50 border-blue-200'
             } else {
               statusType = 'notStarted'
-              statusText = '시작전'
+              statusText = 'Not Started'
               statusColor = 'text-gray-600'
               statusBg = 'bg-gray-50 border-gray-200'
             }
@@ -214,7 +215,7 @@ export function WorkbookNavigation({
             className={`mt-4 w-full py-2.5 px-3 bg-gradient-to-r ${colors.buttonGradient} text-white rounded-lg font-medium transition-all duration-200 shadow-md hover:shadow-lg flex items-center justify-center gap-2`}
           >
             <FileDown className="w-4 h-4" />
-            프로젝트 요약
+            {GLOBAL_UI.projectSummary}
           </button>
         </div>
       </div>

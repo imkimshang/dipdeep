@@ -24,6 +24,7 @@ import { ProjectSettingsModal } from '@/components/workbook/ProjectSettingsModal
 import { ProjectSummaryModal } from '@/components/workbook/ProjectSummaryModal'
 import { WorkbookStatusBar } from '@/components/WorkbookStatusBar'
 import { useProjectAccess } from '@/hooks/useProjectAccess'
+import { useWorkbookCredit } from '@/hooks/useWorkbookCredit'
 
 interface ProblemLog {
   id: number
@@ -94,6 +95,7 @@ function Week1PageContent() {
     unhideProject,
   } = useProjectSettings(projectId)
   const { generateSummary } = useProjectSummary()
+  const { checkAndDeductCredit } = useWorkbookCredit(projectId, 1)
 
   // State
   const [toastVisible, setToastVisible] = useState(false)
@@ -103,6 +105,7 @@ function Week1PageContent() {
   const [newProjectTitle, setNewProjectTitle] = useState('')
   const [showProjectSummary, setShowProjectSummary] = useState(false)
   const [summaryPrompt, setSummaryPrompt] = useState('')
+  const [summaryType, setSummaryType] = useState<SummaryType>('business-plan')
   const [copied, setCopied] = useState(false)
 
   const [problemLog, setProblemLog] = useState<ProblemLog[]>([
@@ -491,6 +494,15 @@ function Week1PageContent() {
       return
     }
 
+    // 최초 1회 저장 시 크레딧 차감
+    try {
+      await checkAndDeductCredit()
+    } catch (error: any) {
+      setToastMessage(error.message || '크레딧 차감 중 오류가 발생했습니다.')
+      setToastVisible(true)
+      return
+    }
+
     const week1Data: Week1Data = {
       problemLog,
       promptStudio,
@@ -565,7 +577,7 @@ function Week1PageContent() {
       return
     }
 
-    const summary = await generateSummary(projectId, projectInfo?.title || null)
+    const summary = await generateSummary(projectId, projectInfo?.title || null, summaryType)
     if (summary) {
       setSummaryPrompt(summary)
       setShowProjectSummary(true)
@@ -595,6 +607,17 @@ function Week1PageContent() {
       )
     ) {
       return
+    }
+
+    // 제출 시에도 크레딧 차감 (저장 시 차감 안 했을 경우)
+    if (!isSubmitted) {
+      try {
+        await checkAndDeductCredit()
+      } catch (error: any) {
+        setToastMessage(error.message || '크레딧 차감 중 오류가 발생했습니다.')
+        setToastVisible(true)
+        return
+      }
     }
 
     const week1Data: Week1Data = {
@@ -720,6 +743,15 @@ function Week1PageContent() {
         summaryPrompt={summaryPrompt}
         onClose={() => setShowProjectSummary(false)}
         onCopy={handleCopySummary}
+        onTypeChange={(type) => {
+          setSummaryType(type)
+          // 타입 변경 시 프롬프트 재생성
+          generateSummary(projectId, projectInfo?.title || null, type).then((prompt) => {
+            if (prompt) setSummaryPrompt(prompt)
+          })
+        }}
+        summaryType={summaryType}
+        projectType={projectInfo?.type || 'webapp'}
       />
 
         {/* Main Content */}

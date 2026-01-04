@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { Users, TrendingUp, Plus, LogOut } from 'lucide-react'
 import { LogoutButton } from '@/components/LogoutButton'
 import { Database } from '@/types/supabase'
+import { GLOBAL_UI } from '@/i18n/translations'
 
 type Team = Database['public']['Tables']['teams']['Row']
 type Project = Database['public']['Tables']['projects']['Row']
@@ -41,7 +42,7 @@ export default async function TeacherDashboard() {
       {/* Header */}
       <header className="bg-white border-b border-gray-200">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-          <h1 className="text-2xl font-bold text-gray-900">교사 대시보드</h1>
+          <h1 className="text-2xl font-bold text-gray-900">{GLOBAL_UI.teacherDashboard}</h1>
           <LogoutButton />
         </div>
       </header>
@@ -52,7 +53,7 @@ export default async function TeacherDashboard() {
           <div className="bg-white rounded-xl shadow-md p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-gray-600 mb-1">관리 팀 수</p>
+                <p className="text-sm text-gray-600 mb-1">{GLOBAL_UI.managedTeams}</p>
                 <p className="text-3xl font-bold text-gray-900">
                   {teams?.length || 0}
                 </p>
@@ -64,7 +65,7 @@ export default async function TeacherDashboard() {
           <div className="bg-white rounded-xl shadow-md p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-gray-600 mb-1">진행 중인 프로젝트</p>
+                <p className="text-sm text-gray-600 mb-1">{GLOBAL_UI.activeProjects}</p>
                 <p className="text-3xl font-bold text-gray-900">
                   {projects?.length || 0}
                 </p>
@@ -76,7 +77,7 @@ export default async function TeacherDashboard() {
           <div className="bg-white rounded-xl shadow-md p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-gray-600 mb-1">평균 진행률</p>
+                <p className="text-sm text-gray-600 mb-1">{GLOBAL_UI.averageProgress}</p>
                 <p className="text-3xl font-bold text-gray-900">
                   {projects && projects.length > 0
                     ? Math.round(
@@ -97,10 +98,10 @@ export default async function TeacherDashboard() {
         {/* Teams Section */}
         <div className="bg-white rounded-xl shadow-md p-6 mb-8">
           <div className="flex items-center justify-between mb-6">
-            <h2 className="text-xl font-semibold text-gray-900">팀 관리</h2>
+            <h2 className="text-xl font-semibold text-gray-900">{GLOBAL_UI.teamManagement}</h2>
             <button className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors">
               <Plus className="w-4 h-4" />
-              새 팀 생성
+              {GLOBAL_UI.createNewTeam}
             </button>
           </div>
 
@@ -112,23 +113,23 @@ export default async function TeacherDashboard() {
                   className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow"
                 >
                   <h3 className="font-semibold text-gray-900 mb-2">
-                    {team.name || '이름 없음'}
+                    {team.name || 'Untitled'}
                   </h3>
                   <p className="text-sm text-gray-600 mb-4">
-                    팀 ID: {team.id.slice(0, 8)}...
+                    {GLOBAL_UI.teamId}: {team.id.slice(0, 8)}...
                   </p>
                   <Link
                     href={`/dashboard/teacher?team=${team.id}`}
                     className="text-indigo-600 hover:text-indigo-700 text-sm font-medium"
                   >
-                    상세 보기 →
+                    {GLOBAL_UI.viewDetails} →
                   </Link>
                 </div>
               ))}
             </div>
           ) : (
             <p className="text-gray-500 text-center py-8">
-              아직 생성된 팀이 없습니다.
+              {GLOBAL_UI.noTeamsYet}
             </p>
           )}
         </div>
@@ -136,7 +137,7 @@ export default async function TeacherDashboard() {
         {/* Projects Section */}
         <div className="bg-white rounded-xl shadow-md p-6">
           <h2 className="text-xl font-semibold text-gray-900 mb-6">
-            학생 프로젝트 현황
+            {GLOBAL_UI.studentProjects}
           </h2>
 
           {projects && projects.length > 0 ? (
@@ -149,15 +150,15 @@ export default async function TeacherDashboard() {
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
                       <h3 className="font-semibold text-gray-900 mb-1">
-                        {project.title || '제목 없음'}
+                        {project.title || 'Untitled'}
                       </h3>
                       <p className="text-sm text-gray-600 mb-2">
-                        작성자: {project.profiles?.username || '알 수 없음'} | 
-                        유형: {project.type || 'N/A'}
+                        {GLOBAL_UI.author}: {project.profiles?.username || 'Unknown'} | 
+                        {GLOBAL_UI.type}: {project.type || 'N/A'}
                       </p>
                       <div className="flex items-center gap-4">
                         <span className="text-sm text-gray-600">
-                          진행 단계: {project.current_step || 0}/12
+                          {GLOBAL_UI.progressStep}: {project.current_step || 0}/12
                         </span>
                         <div className="flex-1 max-w-xs">
                           <div className="w-full bg-gray-200 rounded-full h-2">
@@ -178,7 +179,7 @@ export default async function TeacherDashboard() {
                       href={`/workbook/${project.id}`}
                       className="ml-4 px-4 py-2 text-indigo-600 border border-indigo-600 rounded-lg hover:bg-indigo-50 transition-colors text-sm font-medium"
                     >
-                      상세 보기
+                      {GLOBAL_UI.viewDetails}
                     </Link>
                   </div>
                 </div>
@@ -186,7 +187,7 @@ export default async function TeacherDashboard() {
             </div>
           ) : (
             <p className="text-gray-500 text-center py-8">
-              아직 프로젝트가 없습니다.
+              {GLOBAL_UI.noProjectsYet}
             </p>
           )}
         </div>

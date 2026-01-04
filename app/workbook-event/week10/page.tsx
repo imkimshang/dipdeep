@@ -26,84 +26,130 @@ import { ProjectSettingsModal } from '@/components/workbook/ProjectSettingsModal
 import { ProjectSummaryModal } from '@/components/workbook/ProjectSummaryModal'
 import { WorkbookStatusBar } from '@/components/WorkbookStatusBar'
 import { useProjectAccess } from '@/hooks/useProjectAccess'
+import { useWorkbookCredit } from '@/hooks/useWorkbookCredit'
+import { EVENT_TRANSLATIONS } from '@/i18n/translations'
+import { useLanguage } from '@/contexts/LanguageContext'
 
 export const dynamic = 'force-dynamic'
 
-// 조명 스타일 옵션
-const LIGHTING_STYLES = [
-  { id: 'daylight', label: '자연광 (Daylight)', imageUrl: '/images/lighting/daylight.jpg' },
-  { id: 'neon_cyberpunk', label: '네온/사이버펑크', imageUrl: '/images/lighting/neon.jpg' },
-  { id: 'spotlight', label: '핀조명 (Dark & Spotlight)', imageUrl: '/images/lighting/spotlight.jpg' },
-  { id: 'warm_ambient', label: '따뜻한 앰비언트', imageUrl: '/images/lighting/ambient.jpg' },
-  { id: 'colorful', label: '컬러풀 조명', imageUrl: '/images/lighting/colorful.jpg' },
-  { id: 'minimal', label: '미니멀 조명', imageUrl: '/images/lighting/minimal.jpg' },
-]
+// 조명 스타일 옵션 (다국어 지원)
+const getLightingStyles = (language: 'en' | 'ko') => {
+  const safeLang = language || 'ko'
+  const styles = EVENT_TRANSLATIONS[safeLang]?.session10?.lightingStyles || EVENT_TRANSLATIONS['ko'].session10.lightingStyles
+  if (!styles) return []
+  return [
+    { id: 'daylight', label: styles.daylight, imageUrl: '/images/lighting/daylight.jpg' },
+    { id: 'neon_cyberpunk', label: styles.neonCyberpunk, imageUrl: '/images/lighting/neon.jpg' },
+    { id: 'spotlight', label: styles.spotlight, imageUrl: '/images/lighting/spotlight.jpg' },
+    { id: 'warm_ambient', label: styles.warmAmbient, imageUrl: '/images/lighting/ambient.jpg' },
+    { id: 'colorful', label: styles.colorful, imageUrl: '/images/lighting/colorful.jpg' },
+    { id: 'minimal', label: styles.minimal, imageUrl: '/images/lighting/minimal.jpg' },
+  ]
+}
 
-// 마감재 텍스처 옵션
-const MATERIAL_TEXTURES = [
-  { id: 'concrete', label: '노출 콘크리트', imageUrl: '/images/materials/concrete.jpg' },
-  { id: 'wood', label: '우드/플랜테리어', imageUrl: '/images/materials/wood.jpg' },
-  { id: 'metal', label: '메탈/미러', imageUrl: '/images/materials/metal.jpg' },
-  { id: 'fabric', label: '패브릭/천막', imageUrl: '/images/materials/fabric.jpg' },
-  { id: 'glass', label: '유리', imageUrl: '/images/materials/glass.jpg' },
-  { id: 'vinyl', label: '비닐/라미네이트', imageUrl: '/images/materials/vinyl.jpg' },
-]
+// 마감재 텍스처 옵션 (다국어 지원)
+const getMaterialTextures = (language: 'en' | 'ko') => {
+  const safeLang = language || 'ko'
+  const materials = EVENT_TRANSLATIONS[safeLang]?.session10?.materials || EVENT_TRANSLATIONS['ko'].session10.materials
+  if (!materials) return []
+  return [
+    { id: 'concrete', label: materials.concrete, imageUrl: '/images/materials/concrete.jpg' },
+    { id: 'wood', label: materials.wood, imageUrl: '/images/materials/wood.jpg' },
+    { id: 'metal', label: materials.metal, imageUrl: '/images/materials/metal.jpg' },
+    { id: 'fabric', label: materials.fabric, imageUrl: '/images/materials/fabric.jpg' },
+    { id: 'glass', label: materials.glass, imageUrl: '/images/materials/glass.jpg' },
+    { id: 'vinyl', label: materials.vinyl, imageUrl: '/images/materials/vinyl.jpg' },
+  ]
+}
 
-// 공간감 키워드
-const ATMOSPHERE_KEYWORDS = [
-  '개방적인',
-  '미로 같은',
-  '아늑한',
-  '압도적인',
-  '신비로운',
-  '활기찬',
-  '차분한',
-  '역동적인',
-  '편안한',
-  '긴장감 있는',
-  '모던한',
-  '빈티지한',
-]
+// 공간감 키워드 (다국어 지원)
+const getAtmosphereKeywords = (language: 'en' | 'ko') => {
+  const safeLang = language || 'ko'
+  const keywords = EVENT_TRANSLATIONS[safeLang]?.session10?.atmosphereKeywords || EVENT_TRANSLATIONS['ko'].session10.atmosphereKeywords
+  return Array.isArray(keywords) ? keywords : []
+}
 
-// 입구 스타일 옵션
-const ENTRANCE_STYLES = [
-  { id: 'gate', label: '게이트형', imageUrl: '/images/entrance/gate.jpg' },
-  { id: 'tunnel', label: '터널형', imageUrl: '/images/entrance/tunnel.jpg' },
-  { id: 'open', label: '오픈형', imageUrl: '/images/entrance/open.jpg' },
-  { id: 'curtain', label: '커튼형', imageUrl: '/images/entrance/curtain.jpg' },
-]
+// 입구 스타일 옵션 (다국어 지원)
+const getEntranceStyles = (language: 'en' | 'ko') => {
+  const safeLang = language || 'ko'
+  const styles = EVENT_TRANSLATIONS[safeLang]?.session10?.entranceStyles || EVENT_TRANSLATIONS['ko'].session10.entranceStyles
+  if (!styles) return []
+  return [
+    { id: 'gate', label: styles.gate, imageUrl: '/images/entrance/gate.jpg' },
+    { id: 'tunnel', label: styles.tunnel, imageUrl: '/images/entrance/tunnel.jpg' },
+    { id: 'open', label: styles.open, imageUrl: '/images/entrance/open.jpg' },
+    { id: 'curtain', label: styles.curtain, imageUrl: '/images/entrance/curtain.jpg' },
+  ]
+}
 
-// 부스/집기 스타일 옵션
-const BOOTH_STYLES = [
-  { id: 'wooden', label: '목공 부스', imageUrl: '/images/booth/wooden.jpg' },
-  { id: 'truss', label: '트러스 구조물', imageUrl: '/images/booth/truss.jpg' },
-  { id: 'container', label: '팝업 컨테이너', imageUrl: '/images/booth/container.jpg' },
-  { id: 'modular', label: '모듈러 구조', imageUrl: '/images/booth/modular.jpg' },
-]
+// 부스/집기 스타일 옵션 (다국어 지원)
+const getBoothStyles = (language: 'en' | 'ko') => {
+  const safeLang = language || 'ko'
+  const styles = EVENT_TRANSLATIONS[safeLang]?.session10?.boothStyles || EVENT_TRANSLATIONS['ko'].session10.boothStyles
+  if (!styles) return []
+  return [
+    { id: 'wooden', label: styles.wooden, imageUrl: '/images/booth/wooden.jpg' },
+    { id: 'truss', label: styles.truss, imageUrl: '/images/booth/truss.jpg' },
+    { id: 'container', label: styles.container, imageUrl: '/images/booth/container.jpg' },
+    { id: 'modular', label: styles.modular, imageUrl: '/images/booth/modular.jpg' },
+  ]
+}
 
-// 장식 요소 옵션
-const DECORATION_ELEMENTS = [
-  { id: 'balloon', label: '대형 풍선', imageUrl: '/images/decoration/balloon.jpg' },
-  { id: 'flower', label: '플라워 월', imageUrl: '/images/decoration/flower.jpg' },
-  { id: 'media', label: '미디어 아트', imageUrl: '/images/decoration/media.jpg' },
-  { id: 'light', label: '조명 설치', imageUrl: '/images/decoration/light.jpg' },
-  { id: 'art', label: '아트 설치물', imageUrl: '/images/decoration/art.jpg' },
-  { id: 'signage', label: '사이니지', imageUrl: '/images/decoration/signage.jpg' },
-]
+// 장식 요소 옵션 (다국어 지원)
+const getDecorationElements = (language: 'en' | 'ko') => {
+  const safeLang = language || 'ko'
+  const elements = EVENT_TRANSLATIONS[safeLang]?.session10?.decorationElements || EVENT_TRANSLATIONS['ko'].session10.decorationElements
+  if (!elements) return []
+  return [
+    { id: 'balloon', label: elements.balloon, imageUrl: '/images/decoration/balloon.jpg' },
+    { id: 'flower', label: elements.flower, imageUrl: '/images/decoration/flower.jpg' },
+    { id: 'media', label: elements.media, imageUrl: '/images/decoration/media.jpg' },
+    { id: 'light', label: elements.light, imageUrl: '/images/decoration/light.jpg' },
+    { id: 'art', label: elements.art, imageUrl: '/images/decoration/art.jpg' },
+    { id: 'signage', label: elements.signage, imageUrl: '/images/decoration/signage.jpg' },
+  ]
+}
 
-// 시공/설치 제약사항 옵션
-const CONSTRUCTION_CONSTRAINTS = [
-  '전기 사용량',
-  '급배수 시설 필요',
-  '바닥 보양 필요',
-  '반입구 사이즈 이슈',
-  '층고 제한',
-  '화기 사용 금지',
-  '소음 제한',
-  '천장 설치 불가',
-  '바닥 드릴 금지',
-  '벽면 설치 제한',
-]
+// 시공/설치 제약사항 옵션 (다국어 지원)
+const getConstructionConstraints = (language: 'en' | 'ko'): string[] => {
+  try {
+    const safeLang = language || 'ko'
+    const translations = EVENT_TRANSLATIONS[safeLang] || EVENT_TRANSLATIONS['ko']
+    if (!translations?.session10?.constraints) {
+      return []
+    }
+    
+    const constraints = translations.session10.constraints
+    
+    // constraints가 배열인 경우
+    if (Array.isArray(constraints)) {
+      return constraints
+        .map(c => typeof c === 'string' ? c : (typeof c === 'object' && c !== null ? String(c) : ''))
+        .filter((c): c is string => typeof c === 'string' && c.length > 0)
+    }
+    
+    // constraints가 객체인 경우 객체의 값들을 배열로 변환
+    if (typeof constraints === 'object' && constraints !== null && !Array.isArray(constraints)) {
+      const values = Object.values(constraints)
+      return values
+        .map(v => {
+          if (typeof v === 'string') return v
+          if (typeof v === 'object' && v !== null) {
+            // 중첩 객체인 경우 다시 처리
+            const nestedValues = Object.values(v).filter((sv): sv is string => typeof sv === 'string')
+            return nestedValues.length > 0 ? nestedValues[0] : ''
+          }
+          return String(v)
+        })
+        .filter((v): v is string => typeof v === 'string' && v.length > 0)
+    }
+    
+    return []
+  } catch (error) {
+    console.error('Error in getConstructionConstraints:', error)
+    return []
+  }
+}
 
 interface AtmosphereSetting {
   lighting: string[] // 조명 스타일 ID
@@ -137,6 +183,46 @@ function EventWeek10PageContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const projectId = searchParams.get('projectId') || ''
+  const { language } = useLanguage()
+  const safeLanguage = language || 'ko'
+  const T = EVENT_TRANSLATIONS[safeLanguage]?.session10 || EVENT_TRANSLATIONS['ko'].session10
+  const LIGHTING_STYLES = getLightingStyles(safeLanguage)
+  const MATERIAL_TEXTURES = getMaterialTextures(safeLanguage)
+  const ATMOSPHERE_KEYWORDS = getAtmosphereKeywords(safeLanguage)
+  const ENTRANCE_STYLES = getEntranceStyles(safeLanguage)
+  const BOOTH_STYLES = getBoothStyles(safeLanguage)
+  const DECORATION_ELEMENTS = getDecorationElements(safeLanguage)
+  // CONSTRUCTION_CONSTRAINTS를 직접 변환 (useMemo 제거)
+  const getConstructionConstraintsArray = useCallback((): string[] => {
+    try {
+      const translations = EVENT_TRANSLATIONS[safeLanguage] || EVENT_TRANSLATIONS['ko']
+      const constraints = translations?.session10?.constraints
+      
+      if (!constraints) {
+        return []
+      }
+      
+      // constraints가 객체인 경우 Object.values로 변환
+      if (typeof constraints === 'object' && constraints !== null && !Array.isArray(constraints)) {
+        const values = Object.values(constraints)
+        return values
+          .map(v => typeof v === 'string' ? v : String(v))
+          .filter((v): v is string => typeof v === 'string' && v.length > 0)
+      }
+      
+      // 이미 배열인 경우
+      if (Array.isArray(constraints)) {
+        return constraints
+          .map(c => typeof c === 'string' ? c : String(c))
+          .filter((c): c is string => typeof c === 'string' && c.length > 0)
+      }
+      
+      return []
+    } catch (error) {
+      console.error('Error in getConstructionConstraintsArray:', error)
+      return []
+    }
+  }, [safeLanguage])
 
   // 권한 검증
   useProjectAccess(projectId)
@@ -165,6 +251,7 @@ function EventWeek10PageContent() {
     unhideProject,
   } = useProjectSettings(projectId)
   const { generateSummary } = useProjectSummary()
+  const { checkAndDeductCredit } = useWorkbookCredit(projectId, 10)
 
   // State
   const [toastVisible, setToastVisible] = useState(false)
@@ -294,6 +381,15 @@ function EventWeek10PageContent() {
       return
     }
 
+    // 최초 1회 저장 시 크레딧 차감
+    try {
+      await checkAndDeductCredit()
+    } catch (error: any) {
+      setToastMessage(error.message || '크레딧 차감 중 오류가 발생했습니다.')
+      setToastVisible(true)
+      return
+    }
+
     const eventData: EventWeek10Data = {
       atmosphere,
       zones,
@@ -337,6 +433,17 @@ function EventWeek10PageContent() {
       )
     ) {
       return
+    }
+
+    // 제출 시에도 크레딧 차감 (저장 시 차감 안 했을 경우)
+    if (!isSubmitted) {
+      try {
+        await checkAndDeductCredit()
+      } catch (error: any) {
+        setToastMessage(error.message || '크레딧 차감 중 오류가 발생했습니다.')
+        setToastVisible(true)
+        return
+      }
     }
 
     const eventData: EventWeek10Data = {
@@ -560,21 +667,10 @@ function EventWeek10PageContent() {
 
   // 이벤트 워크북용 회차 제목
   const getEventWeekTitle = useCallback((week: number): string => {
-    const eventTitles: { [key: number]: string } = {
-      1: 'Phase 1 - 행사 방향성 설정 및 트렌드 헌팅',
-      2: 'Phase 1 - 타겟 페르소나',
-      3: 'Phase 1 - 레퍼런스 벤치마킹 및 정량 분석',
-      4: 'Phase 1 - 행사 개요 및 환경 분석',
-      5: 'Phase 2 - 세계관 및 스토리텔링',
-      6: 'Phase 2 - 방문객 여정 지도',
-      7: 'Phase 2 - 킬러 콘텐츠 및 바이럴 기획',
-      8: 'Phase 2 - 마스터 플랜',
-      9: 'Phase 3 - 행사 브랜딩 기획',
-      10: 'Phase 3 - 공간 연출 기획',
-      11: 'Phase 3 - D-Day 통합 실행 계획',
-      12: 'Phase 3 - 최종 피칭 및 검증',
-    }
-    return eventTitles[week] || `${week}회차`
+    // 사이드바는 항상 영어 (Global Shell)
+    const titles = EVENT_TRANSLATIONS.en.titles
+    const title = titles[week - 1] || `Week ${week}`
+    return title
   }, [])
 
   const getStepStatus = (weekNumber: number) => {
@@ -628,8 +724,8 @@ function EventWeek10PageContent() {
         type={toastMessage.includes('오류') ? 'error' : 'success'}
       />
       <WorkbookHeader
-        title="Phase 3: Prototype - 10회: 공간 연출 기획"
-        description="8회차에서 계획한 구역별 조닝을 바탕으로, 주요 공간의 연출 컨셉과 분위기를 시각적 레퍼런스로 정의합니다."
+        title={getWeekTitle(10)}
+        description={EVENT_TRANSLATIONS[safeLanguage]?.descriptions?.[9] || EVENT_TRANSLATIONS['ko'].descriptions[9]}
         phase="Phase 3: Prototype"
         isScrolled={isScrolled}
         currentWeek={10}
@@ -708,7 +804,7 @@ function EventWeek10PageContent() {
               <div className="mb-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
                 <p className="text-xs text-yellow-800 flex items-start gap-2">
                   <Info className="w-4 h-4 mt-0.5 flex-shrink-0" />
-                  <span>8회차에서 공간 조닝을 먼저 설정해주세요.</span>
+                  <span>{T.pleaseSetZoning}</span>
                 </p>
               </div>
             )}
@@ -718,9 +814,9 @@ function EventWeek10PageContent() {
               <div className="flex items-center gap-3 mb-6">
                 <Lightbulb className="w-6 h-6 text-indigo-600" />
                 <div>
-                  <h2 className="text-xl font-bold text-gray-900">전체 공간 무드 설정</h2>
+                  <h2 className="text-xl font-bold text-gray-900">{T.atmosphereSetting}</h2>
                   <p className="text-sm text-gray-600 mt-1">
-                    행사장 전체를 관통하는 조명, 마감재, 분위기를 정의하여 통일된 공간감을 기획합니다.
+                    {T.atmosphereSettingDesc}
                   </p>
                 </div>
               </div>
@@ -729,7 +825,7 @@ function EventWeek10PageContent() {
                 {/* 조명 스타일 */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-3">
-                    조명 (Lighting) 스타일
+                    {T.lighting}
                   </label>
                   <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                     {LIGHTING_STYLES.map((style) => (
@@ -774,7 +870,7 @@ function EventWeek10PageContent() {
                 {/* 마감재 텍스처 */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-3">
-                    마감재 (Material) 텍스처
+                    {T.material}
                   </label>
                   <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                     {MATERIAL_TEXTURES.map((material) => (
@@ -819,10 +915,10 @@ function EventWeek10PageContent() {
                 {/* 공간감 키워드 */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-3">
-                    공간감 키워드
+                    {T.spaceKeywords}
                   </label>
                   <div className="flex flex-wrap gap-2">
-                    {ATMOSPHERE_KEYWORDS.map((keyword) => (
+                    {Array.isArray(ATMOSPHERE_KEYWORDS) && ATMOSPHERE_KEYWORDS.map((keyword) => (
                       <button
                         key={keyword}
                         type="button"
@@ -861,9 +957,9 @@ function EventWeek10PageContent() {
                 <div className="flex items-center gap-3 mb-6">
                   <MapPin className="w-6 h-6 text-indigo-600" />
                   <div>
-                    <h2 className="text-xl font-bold text-gray-900">구역별 연출 및 무드보드</h2>
+                    <h2 className="text-xl font-bold text-gray-900">{T.zoneDirecting}</h2>
                     <p className="text-sm text-gray-600 mt-1">
-                      8회차 조닝 맵의 주요 구역별로 구체적인 연출 의도와 레퍼런스를 매핑합니다.
+                      {T.zoneDirectingDesc}
                     </p>
                   </div>
                 </div>
@@ -894,7 +990,7 @@ function EventWeek10PageContent() {
                     {zones.indexOf(currentZone) === 0 && (
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-3">
-                          입구 스타일
+                          {T.entrance}
                         </label>
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                           {ENTRANCE_STYLES.map((style) => (
@@ -927,7 +1023,7 @@ function EventWeek10PageContent() {
                     {/* 부스/집기 스타일 */}
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-3">
-                        부스/집기 스타일
+                        {T.boothFurniture}
                       </label>
                       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                         {BOOTH_STYLES.map((style) => (
@@ -959,7 +1055,7 @@ function EventWeek10PageContent() {
                     {/* 장식 요소 */}
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-3">
-                        장식 요소
+                        {T.decorationElement}
                       </label>
                       <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                         {DECORATION_ELEMENTS.map((element) => (
@@ -992,20 +1088,20 @@ function EventWeek10PageContent() {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">
-                          방문객 경험 (연출 의도)
+                          {T.visitorExperience} ({T.directingIntent})
                         </label>
                         <textarea
                           value={currentZone.experienceIntent}
                           onChange={(e) => updateZone(currentZone.zoneName, 'experienceIntent', e.target.value)}
                           disabled={readonly}
                           rows={4}
-                          placeholder="예: 입구에서는 궁금증을 유발하기 위해 내부가 보이지 않는 터널 형태를 사용함"
+                          placeholder={safeLanguage === 'ko' ? '예: 입구에서는 궁금증을 유발하기 위해 내부가 보이지 않는 터널 형태를 사용함' : 'e.g., Use tunnel form that hides interior at entrance to create curiosity'}
                           className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm resize-none disabled:bg-gray-100 disabled:cursor-not-allowed"
                         />
                       </div>
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">
-                          필요 집기
+                          {T.requiredItems}
                         </label>
                         <textarea
                           value={currentZone.requiredItems}
@@ -1027,9 +1123,9 @@ function EventWeek10PageContent() {
               <div className="flex items-center gap-3 mb-6">
                 <FileText className="w-6 h-6 text-indigo-600" />
                 <div>
-                  <h2 className="text-xl font-bold text-gray-900">공간 연출 정의서</h2>
+                  <h2 className="text-xl font-bold text-gray-900">{T.spaceBrief}</h2>
                   <p className="text-sm text-gray-600 mt-1">
-                    공간 디자이너나 시공 업체에게 전달할 수 있는 수준의 요구사항 정의서입니다.
+                    {safeLanguage === 'ko' ? '공간 디자이너나 시공 업체에게 전달할 수 있는 수준의 요구사항 정의서입니다.' : 'A requirements specification that can be delivered to space designers or construction companies.'}
                   </p>
                 </div>
               </div>
@@ -1038,49 +1134,71 @@ function EventWeek10PageContent() {
                 {/* 시공/설치 제약사항 */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-3">
-                    시공/설치 제약사항
+                    {(() => {
+                      // T.constraints가 문자열인지 확인 (객체일 수 있음)
+                      const constraintsLabel = typeof T.constraints === 'string' 
+                        ? T.constraints 
+                        : (safeLanguage === 'ko' ? '시공/설치 제약사항' : 'Installation Constraints')
+                      return constraintsLabel
+                    })()}
                   </label>
                   <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                    {CONSTRUCTION_CONSTRAINTS.map((constraint) => (
-                      <label
-                        key={constraint}
-                        className="flex items-center gap-2 p-3 border border-gray-200 rounded-lg hover:bg-gray-50 cursor-pointer"
-                      >
-                        <input
-                          type="checkbox"
-                          checked={brief.constraints.includes(constraint)}
-                          onChange={(e) => {
-                            if (readonly) return
-                            if (e.target.checked) {
-                              setBrief({
-                                ...brief,
-                                constraints: [...brief.constraints, constraint],
-                              })
-                            } else {
-                              setBrief({
-                                ...brief,
-                                constraints: brief.constraints.filter((c) => c !== constraint),
-                              })
-                            }
-                          }}
-                          disabled={readonly}
-                          className="w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500 disabled:opacity-50"
-                        />
-                        <span className="text-sm text-gray-700">{constraint}</span>
-                      </label>
-                    ))}
+                    {(() => {
+                      // 함수를 직접 호출하여 배열 얻기
+                      const constraints = getConstructionConstraintsArray()
+                      
+                      if (constraints.length === 0) {
+                        return <p className="text-sm text-gray-500 col-span-full">No constraints available</p>
+                      }
+                      
+                      return constraints.map((constraint) => {
+                        // constraint가 반드시 문자열인지 확인
+                        if (typeof constraint !== 'string' || constraint.length === 0) {
+                          return null
+                        }
+                        
+                        return (
+                          <label
+                            key={constraint}
+                            className="flex items-center gap-2 p-3 border border-gray-200 rounded-lg hover:bg-gray-50 cursor-pointer"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={brief.constraints.includes(constraint)}
+                              onChange={(e) => {
+                                if (readonly) return
+                                if (e.target.checked) {
+                                  setBrief({
+                                    ...brief,
+                                    constraints: [...brief.constraints, constraint],
+                                  })
+                                } else {
+                                  setBrief({
+                                    ...brief,
+                                    constraints: brief.constraints.filter((c) => c !== constraint),
+                                  })
+                                }
+                              }}
+                              disabled={readonly}
+                              className="w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500 disabled:opacity-50"
+                            />
+                            <span className="text-sm text-gray-700">{constraint}</span>
+                          </label>
+                        )
+                      }).filter(Boolean)
+                    })()}
                   </div>
                 </div>
 
                 {/* 동선 계획 요약 */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    동선 계획 요약
+                    {T.flowPlan}
                   </label>
                   <div className="mb-2 p-3 bg-blue-50 border border-blue-200 rounded-lg">
                     <p className="text-xs text-blue-800 flex items-start gap-2">
                       <Info className="w-3 h-3 mt-0.5 flex-shrink-0" />
-                      <span>6회차 여정 지도에서 자동으로 불러옵니다. 필요시 수정할 수 있습니다.</span>
+                      <span>{safeLanguage === 'ko' ? '6회차 여정 지도에서 자동으로 불러옵니다. 필요시 수정할 수 있습니다.' : 'Automatically loaded from Week 6 journey map. You can modify it if needed.'}</span>
                     </p>
                   </div>
                   <textarea
@@ -1088,7 +1206,7 @@ function EventWeek10PageContent() {
                     onChange={(e) => setBrief({ ...brief, trafficFlow: e.target.value })}
                     disabled={readonly}
                     rows={6}
-                    placeholder="방문객의 관람 방향과 동선을 설명하세요 (예: 일방통행/자유관람)"
+                    placeholder={safeLanguage === 'ko' ? '방문객의 관람 방향과 동선을 설명하세요 (예: 일방통행/자유관람)' : 'Describe visitor viewing direction and flow (e.g., one-way/free viewing)'}
                     className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm resize-none disabled:bg-gray-100 disabled:cursor-not-allowed"
                   />
                 </div>
@@ -1099,7 +1217,7 @@ function EventWeek10PageContent() {
                   zones.some((z) => z.entranceStyle.length > 0 || z.boothStyle.length > 0 || z.decorationElements.length > 0)) && (
                   <div className="p-6 bg-gray-50 border border-gray-200 rounded-lg">
                     <h3 className="text-sm font-semibold text-gray-900 mb-4">
-                      공간 컨셉 보드 (최종 무드보드)
+                      {T.finalMoodboard}
                     </h3>
                     <div className="space-y-4">
                       {/* 전체 공간 무드 */}

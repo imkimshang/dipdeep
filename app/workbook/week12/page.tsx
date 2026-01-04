@@ -20,7 +20,7 @@ import { Toast } from '@/components/Toast'
 import { useWorkbookStorage } from '@/hooks/useWorkbookStorage'
 import { useWorkbookNavigation } from '@/hooks/useWorkbookNavigation'
 import { useProjectSettings } from '@/hooks/useProjectSettings'
-import { useProjectSummary } from '@/hooks/useProjectSummary'
+import { useProjectSummary, type SummaryType } from '@/hooks/useProjectSummary'
 import { WorkbookHeader } from '@/components/workbook/WorkbookHeader'
 import { WorkbookSection } from '@/components/workbook/WorkbookSection'
 import { WorkbookFooter } from '@/components/workbook/WorkbookFooter'
@@ -29,8 +29,7 @@ import { ProjectSettingsModal } from '@/components/workbook/ProjectSettingsModal
 import { ProjectSummaryModal } from '@/components/workbook/ProjectSummaryModal'
 import { WorkbookStatusBar } from '@/components/WorkbookStatusBar'
 import { useProjectAccess } from '@/hooks/useProjectAccess'
-
-
+import { useWorkbookCredit } from '@/hooks/useWorkbookCredit'
 
 interface RequirementCheck {
   requirementId: string // RFP 요구사항 ID
@@ -189,11 +188,13 @@ function Week12PageContent() {
   }
   const { updateProjectTitle, deleteProject } = useProjectSettings(projectId || '')
   const { generateSummary } = useProjectSummary()
+  const { checkAndDeductCredit } = useWorkbookCredit(projectId, 12)
 
   const [showSettings, setShowSettings] = useState(false)
   const [newProjectTitle, setNewProjectTitle] = useState('')
   const [showProjectSummary, setShowProjectSummary] = useState(false)
   const [summaryPrompt, setSummaryPrompt] = useState('')
+  const [summaryType, setSummaryType] = useState<SummaryType>('business-plan')
 
   // Load existing data
   useEffect(() => {
@@ -417,6 +418,15 @@ function Week12PageContent() {
       return
     }
 
+    // 최초 1회 저장 시 크레딧 차감
+    try {
+      await checkAndDeductCredit()
+    } catch (error: any) {
+      setToastMessage(error.message || '크레딧 차감 중 오류가 발생했습니다.')
+      setToastVisible(true)
+      return
+    }
+
     const progress = calculateProgress()
     const success = await saveStepData(12, formData, progress)
 
@@ -443,6 +453,15 @@ function Week12PageContent() {
           '워크북을 제출하시겠습니까?\n제출 후에는 수정이 불가능합니다.\n(제출 취소는 가능합니다)'
         )
       ) {
+        return
+      }
+
+      // 제출 시에도 크레딧 차감 (저장 시 차감 안 했을 경우)
+      try {
+        await checkAndDeductCredit()
+      } catch (error: any) {
+        setToastMessage(error.message || '크레딧 차감 중 오류가 발생했습니다.')
+        setToastVisible(true)
         return
       }
     }
@@ -585,7 +604,7 @@ function Week12PageContent() {
       return
     }
 
-    const summary = await generateSummary(projectId, projectInfo?.title || null)
+    const summary = await generateSummary(projectId, projectInfo?.title || null, summaryType)
     if (summary) {
       setSummaryPrompt(summary)
       setShowProjectSummary(true)
@@ -1099,6 +1118,15 @@ function Week12PageContent() {
         summaryPrompt={summaryPrompt}
         onClose={() => setShowProjectSummary(false)}
         onCopy={handleCopySummary}
+        onTypeChange={(type) => {
+          setSummaryType(type)
+          // 타입 변경 시 프롬프트 재생성
+          generateSummary(projectId, projectInfo?.title || null, type).then((prompt) => {
+            if (prompt) setSummaryPrompt(prompt)
+          })
+        }}
+        summaryType={summaryType}
+        projectType={projectInfo?.type || 'webapp'}
       />
 
       {/* 하단 상태 바 */}

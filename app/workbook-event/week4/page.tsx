@@ -33,33 +33,42 @@ import { ProjectSettingsModal } from '@/components/workbook/ProjectSettingsModal
 import { ProjectSummaryModal } from '@/components/workbook/ProjectSummaryModal'
 import { WorkbookStatusBar } from '@/components/WorkbookStatusBar'
 import { useProjectAccess } from '@/hooks/useProjectAccess'
+import { useWorkbookCredit } from '@/hooks/useWorkbookCredit'
+import { EVENT_TRANSLATIONS } from '@/i18n/translations'
+import { useLanguage } from '@/contexts/LanguageContext'
 
 export const dynamic = 'force-dynamic'
 
-// 공간 타입 옵션
-const VENUE_TYPES = [
-  { id: 'indoor_convention', label: '실내 (컨벤션/홀)', icon: Building },
-  { id: 'outdoor_park', label: '야외 (공원/광장)', icon: MapPin },
-  { id: 'cafe_complex', label: '카페/복합문화공간', icon: Coffee },
-  { id: 'gym', label: '체육관', icon: Zap },
-  { id: 'popup_space', label: '팝업 전용 공간', icon: Home },
-  { id: 'other', label: '기타', icon: Music },
-]
+// 공간 타입 옵션 (다국어 지원)
+const getVenueTypes = (language: 'en' | 'ko') => {
+  const types = EVENT_TRANSLATIONS[language]?.session4?.venueTypes || EVENT_TRANSLATIONS['ko'].session4.venueTypes
+  return [
+    { id: 'indoor_convention', label: types.indoorConvention, icon: Building },
+    { id: 'outdoor_park', label: types.outdoorPark, icon: MapPin },
+    { id: 'cafe_complex', label: types.cafeComplex, icon: Coffee },
+    { id: 'gym', label: types.gym, icon: Zap },
+    { id: 'popup_space', label: types.popupSpace, icon: Home },
+    { id: 'other', label: types.other, icon: Music },
+  ]
+}
 
-// 물리적 제약 사항 옵션
-const CONSTRAINT_OPTIONS = [
-  '소음 제한',
-  '전기 용량 부족',
-  '주차 불가',
-  '화기 사용 금지',
-  '층고 제한',
-  '반입구 크기 제한',
-  '온도 조절 불가',
-  '통풍 불량',
-  '화장실 부족',
-  '날씨 영향',
-  '기타',
-]
+// 물리적 제약 사항 옵션 (다국어 지원)
+const getConstraintOptions = (language: 'en' | 'ko') => {
+  const constraints = EVENT_TRANSLATIONS[language]?.session4?.constraints || EVENT_TRANSLATIONS['ko'].session4.constraints
+  return [
+    constraints.noise,
+    constraints.electricity,
+    constraints.parking,
+    constraints.fire,
+    constraints.ceiling,
+    constraints.entrance,
+    constraints.temperature,
+    constraints.ventilation,
+    constraints.restroom,
+    constraints.weather,
+    constraints.other,
+  ]
+}
 
 interface EventWeek4Data {
   basicInfo: {
@@ -93,6 +102,11 @@ function EventWeek4PageContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const projectId = searchParams.get('projectId') || ''
+  const { language } = useLanguage()
+  const safeLanguage = language || 'ko'
+  const T = EVENT_TRANSLATIONS[safeLanguage]?.session4 || EVENT_TRANSLATIONS['ko'].session4
+  const VENUE_TYPES = getVenueTypes(safeLanguage)
+  const CONSTRAINT_OPTIONS = getConstraintOptions(safeLanguage)
 
   // 권한 검증
   useProjectAccess(projectId)
@@ -121,6 +135,7 @@ function EventWeek4PageContent() {
     unhideProject,
   } = useProjectSettings(projectId)
   const { generateSummary } = useProjectSummary()
+  const { checkAndDeductCredit } = useWorkbookCredit(projectId, 4)
 
   // State
   const [toastVisible, setToastVisible] = useState(false)
@@ -264,6 +279,15 @@ function EventWeek4PageContent() {
       return
     }
 
+    // 최초 1회 저장 시 크레딧 차감
+    try {
+      await checkAndDeductCredit()
+    } catch (error: any) {
+      setToastMessage(error.message || '크레딧 차감 중 오류가 발생했습니다.')
+      setToastVisible(true)
+      return
+    }
+
     const eventData: EventWeek4Data = {
       basicInfo: {
         ...basicInfo,
@@ -311,6 +335,17 @@ function EventWeek4PageContent() {
       )
     ) {
       return
+    }
+
+    // 제출 시에도 크레딧 차감 (저장 시 차감 안 했을 경우)
+    if (!isSubmitted) {
+      try {
+        await checkAndDeductCredit()
+      } catch (error: any) {
+        setToastMessage(error.message || '크레딧 차감 중 오류가 발생했습니다.')
+        setToastVisible(true)
+        return
+      }
     }
 
     const eventData: EventWeek4Data = {
@@ -557,21 +592,10 @@ function EventWeek4PageContent() {
 
   // 이벤트 워크북용 회차 제목
   const getEventWeekTitle = useCallback((week: number): string => {
-    const eventTitles: { [key: number]: string } = {
-      1: 'Phase 1 - 행사 방향성 설정 및 트렌드 헌팅',
-      2: 'Phase 1 - 타겟 페르소나',
-      3: 'Phase 1 - 레퍼런스 벤치마킹 및 정량 분석',
-      4: 'Phase 1 - 행사 개요 및 환경 분석',
-      5: 'Phase 2 - 세계관 및 스토리텔링',
-      6: 'Phase 2 - 방문객 여정 지도',
-      7: 'Phase 2 - 킬러 콘텐츠 및 바이럴 기획',
-      8: 'Phase 2 - 마스터 플랜',
-      9: 'Phase 3 - 행사 브랜딩',
-      10: 'Phase 3 - 공간 조감도',
-      11: 'Phase 3 - D-Day 통합 실행 계획',
-      12: 'Phase 3 - 최종 피칭 및 검증',
-    }
-    return eventTitles[week] || `${week}회차`
+    // 사이드바는 항상 영어 (Global Shell)
+    const titles = EVENT_TRANSLATIONS.en.titles
+    const title = titles[week - 1] || `Week ${week}`
+    return title
   }, [])
 
   const getStepStatus = (weekNumber: number) => {
@@ -729,9 +753,9 @@ function EventWeek4PageContent() {
               <div className="flex items-center gap-3 mb-6">
                 <Target className="w-6 h-6 text-indigo-600" />
                 <div>
-                  <h2 className="text-xl font-bold text-gray-900">행사 기본 정보 빌더</h2>
+                  <h2 className="text-xl font-bold text-gray-900">{T.basicInfo}</h2>
                   <p className="text-sm text-gray-600 mt-1">
-                    1~3회차 분석 내용을 바탕으로 행사의 정체성을 확정합니다.
+                    {T.basicInfoDescription || 'Confirm event identity based on analysis from sessions 1-3.'}
                   </p>
                 </div>
               </div>
@@ -740,14 +764,14 @@ function EventWeek4PageContent() {
                 {/* 행사명 */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    행사명(가제) <span className="text-red-500">*</span>
+                    {T.eventName} <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="text"
                     value={basicInfo.eventName}
                     onChange={(e) => setBasicInfo({ ...basicInfo, eventName: e.target.value })}
                     disabled={readonly}
-                    placeholder="예: 2024 서울 팝업 페스티벌"
+                    placeholder={T.eventNamePlaceholder || 'e.g. 2024 Seoul Pop-up Festival'}
                     className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm disabled:bg-gray-100 disabled:cursor-not-allowed"
                   />
                 </div>
@@ -755,14 +779,14 @@ function EventWeek4PageContent() {
                 {/* 한 줄 컨셉 */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    한 줄 컨셉 <span className="text-red-500">*</span>
+                    {T.concept} <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="text"
                     value={basicInfo.concept}
                     onChange={(e) => setBasicInfo({ ...basicInfo, concept: e.target.value })}
                     disabled={readonly}
-                    placeholder="예: 데이터로 검증된 트렌드를 공간으로 구현하다"
+                    placeholder={T.conceptPlaceholder || 'e.g. Realize data-verified trends in space'}
                     className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm disabled:bg-gray-100 disabled:cursor-not-allowed"
                   />
                 </div>
@@ -771,11 +795,11 @@ function EventWeek4PageContent() {
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
                     <CalendarIcon className="w-4 h-4" />
-                    개최 일정 <span className="text-red-500">*</span>
+                    {T.eventDate} <span className="text-red-500">*</span>
                   </label>
                   <div className="grid md:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-xs text-gray-600 mb-1">시작일</label>
+                      <label className="block text-xs text-gray-600 mb-1">{T.startDate}</label>
                       <input
                         type="date"
                         value={basicInfo.startDate}
@@ -785,7 +809,7 @@ function EventWeek4PageContent() {
                       />
                     </div>
                     <div>
-                      <label className="block text-xs text-gray-600 mb-1">종료일</label>
+                      <label className="block text-xs text-gray-600 mb-1">{T.endDate}</label>
                       <input
                         type="date"
                         value={basicInfo.endDate}
@@ -799,7 +823,7 @@ function EventWeek4PageContent() {
                   <div className="mt-4">
                     <label className="block text-xs text-gray-600 mb-1 flex items-center gap-2">
                       <Clock className="w-3 h-3" />
-                      운영 시간 (일별)
+                      {T.operatingHoursLabel || T.operatingHours}
                     </label>
                     <input
                       type="text"
@@ -832,13 +856,13 @@ function EventWeek4PageContent() {
               <div className="space-y-6">
                 {/* 정량 목표 */}
                 <div>
-                  <h4 className="text-sm font-semibold text-gray-900 mb-4">정량 목표</h4>
+                  <h4 className="text-sm font-semibold text-gray-900 mb-4">{T.quantitativeKpi}</h4>
                   <div className="grid md:grid-cols-3 gap-4">
                     {/* 모객 목표 */}
                     <div className="relative">
                       <label className="block text-xs font-medium text-gray-700 mb-2 flex items-center gap-2">
                         <Users className="w-4 h-4" />
-                        모객 목표 (명)
+                        {T.targetVisitors}
                         {getReferenceAverage('visitors') && (
                           <button
                             type="button"
@@ -871,7 +895,7 @@ function EventWeek4PageContent() {
                     <div className="relative">
                       <label className="block text-xs font-medium text-gray-700 mb-2 flex items-center gap-2">
                         <DollarSign className="w-4 h-4" />
-                        매출 목표 (만원)
+                        {T.targetRevenue} (만원)
                         {getReferenceAverage('revenue') && (
                           <button
                             type="button"
@@ -903,7 +927,7 @@ function EventWeek4PageContent() {
                     {/* 바이럴 목표 */}
                     <div>
                       <label className="block text-xs font-medium text-gray-700 mb-2">
-                        바이럴 목표 (게시물 수)
+                        {T.targetViral} (게시물 수)
                       </label>
                       <input
                         type="text"
@@ -919,7 +943,7 @@ function EventWeek4PageContent() {
 
                 {/* 정성 목표 */}
                 <div>
-                  <h4 className="text-sm font-semibold text-gray-900 mb-2">정성 목표</h4>
+                  <h4 className="text-sm font-semibold text-gray-900 mb-2">{T.qualitativeKpi}</h4>
                   <label className="block text-xs font-medium text-gray-700 mb-2">
                     기대 효과
                   </label>

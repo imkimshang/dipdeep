@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { Eye } from 'lucide-react'
 import { createClient } from '@/utils/supabase/client'
+import { GLOBAL_UI } from '@/i18n/translations'
 
 interface UnhideProjectButtonProps {
   projectId: string
@@ -17,7 +18,7 @@ export function UnhideProjectButton({ projectId, onSuccess }: UnhideProjectButto
     e.preventDefault()
     e.stopPropagation()
 
-    if (!confirm('이 프로젝트를 다시 표시하시겠습니까?')) {
+    if (!confirm('Do you want to unhide this project?')) {
       return
     }
 
@@ -28,7 +29,7 @@ export function UnhideProjectButton({ projectId, onSuccess }: UnhideProjectButto
       } = await supabase.auth.getUser()
 
       if (!user) {
-        alert('로그인이 필요합니다.')
+        alert('Login required.')
         return
       }
 
@@ -38,15 +39,15 @@ export function UnhideProjectButton({ projectId, onSuccess }: UnhideProjectButto
 
       if (error) throw error
 
-      alert('프로젝트가 다시 표시되었습니다.')
+      alert('Project has been unhidden.')
       if (onSuccess) {
         onSuccess()
       } else {
         window.location.reload()
       }
     } catch (error: any) {
-      console.error('프로젝트 숨김 해제 오류:', error)
-      alert(`오류: ${error.message || '프로젝트 숨김 해제에 실패했습니다.'}`)
+      console.error('Unhide project error:', error)
+      alert(`Error: ${error.message || 'Failed to unhide project.'}`)
     } finally {
       setLoading(false)
     }
@@ -57,10 +58,10 @@ export function UnhideProjectButton({ projectId, onSuccess }: UnhideProjectButto
       onClick={handleUnhide}
       disabled={loading}
       className="px-3 py-1.5 bg-purple-100 text-purple-700 rounded-lg hover:bg-purple-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5 text-sm font-medium"
-      title="프로젝트 다시 표시"
+      title={GLOBAL_UI.unhideProject}
     >
       <Eye className="w-3.5 h-3.5" />
-      {loading ? '처리 중...' : '숨김 해제'}
+      {loading ? GLOBAL_UI.unhiding : GLOBAL_UI.unhideProject}
     </button>
   )
 }

@@ -25,35 +25,49 @@ import { ProjectSettingsModal } from '@/components/workbook/ProjectSettingsModal
 import { ProjectSummaryModal } from '@/components/workbook/ProjectSummaryModal'
 import { WorkbookStatusBar } from '@/components/WorkbookStatusBar'
 import { useProjectAccess } from '@/hooks/useProjectAccess'
+import { useWorkbookCredit } from '@/hooks/useWorkbookCredit'
+import { EVENT_TRANSLATIONS } from '@/i18n/translations'
+import { useLanguage } from '@/contexts/LanguageContext'
 
 export const dynamic = 'force-dynamic'
 
-// 타이포그래피 무드 옵션
-const TYPOGRAPHY_STYLES = [
-  { id: 'gothic_modern', label: '고딕 (모던)' },
-  { id: 'serif_serious', label: '명조 (진지함)' },
-  { id: 'handwritten', label: '손글씨 (친근함)' },
-  { id: 'pixel_retro', label: '픽셀아트 (레트로)' },
-  { id: 'sans_clean', label: '산세리프 (깔끔)' },
-  { id: 'script_elegant', label: '스크립트 (우아함)' },
-]
+// 타이포그래피 무드 옵션 (다국어 지원)
+const getTypographyStyles = (language: 'en' | 'ko') => {
+  const styles = EVENT_TRANSLATIONS[language]?.session9?.typographyStyles || EVENT_TRANSLATIONS['ko'].session9.typographyStyles
+  return [
+    { id: 'gothic_modern', label: styles.gothicModern },
+    { id: 'serif_serious', label: styles.serifSerious },
+    { id: 'handwritten', label: styles.handwritten },
+    { id: 'pixel_retro', label: styles.pixelRetro },
+    { id: 'sans_clean', label: styles.sansClean },
+    { id: 'script_elegant', label: styles.scriptElegant },
+  ]
+}
 
-// 그래픽 모티브 옵션 (레퍼런스 이미지 URL - 나중에 실제 이미지로 교체)
-const GRAPHIC_MOTIFS = [
-  { id: 'wave', label: '물결', imageUrl: '/images/motifs/wave.jpg' },
-  { id: 'neon_line', label: '네온 라인', imageUrl: '/images/motifs/neon-line.jpg' },
-  { id: 'dotted', label: '점선', imageUrl: '/images/motifs/dotted.jpg' },
-  { id: 'geometric', label: '기하학적', imageUrl: '/images/motifs/geometric.jpg' },
-  { id: 'organic', label: '유기적 형태', imageUrl: '/images/motifs/organic.jpg' },
-  { id: 'gradient', label: '그라데이션', imageUrl: '/images/motifs/gradient.jpg' },
-]
+// 그래픽 모티브 옵션 (다국어 지원)
+const getGraphicMotifs = (language: 'en' | 'ko') => {
+  const motifs = EVENT_TRANSLATIONS[language]?.session9?.graphicMotifs || EVENT_TRANSLATIONS['ko'].session9.graphicMotifs
+  return [
+    { id: 'wave', label: motifs.wave, imageUrl: '/images/motifs/wave.jpg' },
+    { id: 'neon_line', label: motifs.neonLine, imageUrl: '/images/motifs/neon-line.jpg' },
+    { id: 'dotted', label: motifs.dotted, imageUrl: '/images/motifs/dotted.jpg' },
+    { id: 'geometric', label: motifs.geometric, imageUrl: '/images/motifs/geometric.jpg' },
+    { id: 'organic', label: motifs.organic, imageUrl: '/images/motifs/organic.jpg' },
+    { id: 'gradient', label: motifs.gradient, imageUrl: '/images/motifs/gradient.jpg' },
+  ]
+}
 
-// 굿즈 카테고리
-const GOODS_CATEGORIES = {
-  의류: ['티셔츠', '후드', '모자', '에이프런'],
-  문구: ['스티커', '마스킹테이프', '노트', '펜'],
-  리빙: ['머그컵', '텀블러', '포스터', '캔버스'],
-  잡화: ['에코백', '키링', '뱃지', '토트백'],
+// 굿즈 카테고리 (다국어 지원)
+const getGoodsCategories = (language: 'en' | 'ko') => {
+  const safeLang = language || 'ko'
+  const cats = EVENT_TRANSLATIONS[safeLang]?.session9?.goodsCategories || EVENT_TRANSLATIONS['ko'].session9.goodsCategories
+  const items = EVENT_TRANSLATIONS[safeLang]?.session9?.goodsItems || EVENT_TRANSLATIONS['ko'].session9.goodsItems
+  return {
+    [cats.apparel]: [items.tshirt, items.hoodie, items.cap, items.apron],
+    [cats.stationery]: [items.sticker, items.maskingTape, items.notebook, items.pen],
+    [cats.living]: [items.mug, items.tumbler, items.poster, items.canvas],
+    [cats.accessories]: [items.toteBag, items.keyring, items.badge, items.toteBag], // Note: 토트백 might be duplicate
+  }
 }
 
 // 굿즈 스타일 레퍼런스 라이브러리 (실제로는 서버에서 제공되는 이미지)
@@ -119,6 +133,12 @@ function EventWeek9PageContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const projectId = searchParams.get('projectId') || ''
+  const { language } = useLanguage()
+  const safeLanguage = language || 'ko'
+  const T = EVENT_TRANSLATIONS[safeLanguage]?.session9 || EVENT_TRANSLATIONS['ko'].session9
+  const TYPOGRAPHY_STYLES = getTypographyStyles(language)
+  const GRAPHIC_MOTIFS = getGraphicMotifs(language)
+  const GOODS_CATEGORIES = getGoodsCategories(language)
 
   // 권한 검증
   useProjectAccess(projectId)
@@ -147,6 +167,7 @@ function EventWeek9PageContent() {
     unhideProject,
   } = useProjectSettings(projectId)
   const { generateSummary } = useProjectSummary()
+  const { checkAndDeductCredit } = useWorkbookCredit(projectId, 9)
 
   // State
   const [toastVisible, setToastVisible] = useState(false)
@@ -189,7 +210,7 @@ function EventWeek9PageContent() {
   // 보조색 추가
   const addSecondaryColor = () => {
     if (visualIdentity.colors.secondary.length >= 3) {
-      setToastMessage('보조색은 최대 3개까지 선택할 수 있습니다.')
+      setToastMessage(T.maxSecondaryColors)
       setToastVisible(true)
       return
     }
@@ -216,7 +237,7 @@ function EventWeek9PageContent() {
   // 굿즈 항목 추가
   const addGoodsItem = () => {
     if (!selectedCategory || !selectedItemName) {
-      setToastMessage('카테고리와 품목을 선택해주세요.')
+      setToastMessage(T.selectCategoryAndItem)
       setToastVisible(true)
       return
     }
@@ -253,7 +274,7 @@ function EventWeek9PageContent() {
           } else {
             // 선택 (최대 3개)
             if (currentStyles.length >= 3) {
-              setToastMessage('스타일은 최대 3개까지 선택할 수 있습니다.')
+              setToastMessage(T.maxStyles)
               setToastVisible(true)
               return item
             }
@@ -353,6 +374,15 @@ function EventWeek9PageContent() {
       return
     }
 
+    // 최초 1회 저장 시 크레딧 차감
+    try {
+      await checkAndDeductCredit()
+    } catch (error: any) {
+      setToastMessage(error.message || '크레딧 차감 중 오류가 발생했습니다.')
+      setToastVisible(true)
+      return
+    }
+
     const eventData: EventWeek9Data = {
       visualIdentity,
       goodsLineup,
@@ -395,6 +425,17 @@ function EventWeek9PageContent() {
       )
     ) {
       return
+    }
+
+    // 제출 시에도 크레딧 차감 (저장 시 차감 안 했을 경우)
+    if (!isSubmitted) {
+      try {
+        await checkAndDeductCredit()
+      } catch (error: any) {
+        setToastMessage(error.message || '크레딧 차감 중 오류가 발생했습니다.')
+        setToastVisible(true)
+        return
+      }
     }
 
     const eventData: EventWeek9Data = {
@@ -590,21 +631,10 @@ function EventWeek9PageContent() {
 
   // 이벤트 워크북용 회차 제목
   const getEventWeekTitle = useCallback((week: number): string => {
-    const eventTitles: { [key: number]: string } = {
-      1: 'Phase 1 - 행사 방향성 설정 및 트렌드 헌팅',
-      2: 'Phase 1 - 타겟 페르소나',
-      3: 'Phase 1 - 레퍼런스 벤치마킹 및 정량 분석',
-      4: 'Phase 1 - 행사 개요 및 환경 분석',
-      5: 'Phase 2 - 세계관 및 스토리텔링',
-      6: 'Phase 2 - 방문객 여정 지도',
-      7: 'Phase 2 - 킬러 콘텐츠 및 바이럴 기획',
-      8: 'Phase 2 - 마스터 플랜',
-      9: 'Phase 3 - 행사 브랜딩 기획',
-      10: 'Phase 3 - 공간 조감도',
-      11: 'Phase 3 - D-Day 통합 실행 계획',
-      12: 'Phase 3 - 최종 피칭 및 검증',
-    }
-    return eventTitles[week] || `${week}회차`
+    // 사이드바는 항상 영어 (Global Shell)
+    const titles = EVENT_TRANSLATIONS.en.titles
+    const title = titles[week - 1] || `Week ${week}`
+    return title
   }, [])
 
   const getStepStatus = (weekNumber: number) => {
@@ -652,8 +682,8 @@ function EventWeek9PageContent() {
         type={toastMessage.includes('오류') ? 'error' : 'success'}
       />
       <WorkbookHeader
-        title="Phase 3: Prototype - 9회: 행사 브랜딩 기획"
-        description="5회차에서 설정한 테마와 세계관을 시각적으로 어떻게 표현할지 비주얼 전략을 수립하고, 제작할 굿즈의 라인업과 디자인 레퍼런스를 무드보드 형태로 기획합니다."
+        title={getWeekTitle(9)}
+        description={EVENT_TRANSLATIONS[safeLanguage]?.descriptions?.[8] || EVENT_TRANSLATIONS['ko'].descriptions[8]}
         phase="Phase 3: Prototype"
         isScrolled={isScrolled}
         currentWeek={9}
@@ -746,9 +776,9 @@ function EventWeek9PageContent() {
               <div className="flex items-center gap-3 mb-6">
                 <Palette className="w-6 h-6 text-indigo-600" />
                 <div>
-                  <h2 className="text-xl font-bold text-gray-900">비주얼 아이덴티티 정의</h2>
+                  <h2 className="text-xl font-bold text-gray-900">{T.visualIdentity}</h2>
                   <p className="text-sm text-gray-600 mt-1">
-                    행사의 인상을 결정짓는 컬러, 폰트, 그래픽 스타일 등 시각적 규정을 정의합니다.
+                    {T.visualIdentityDesc}
                   </p>
                 </div>
               </div>
@@ -757,13 +787,13 @@ function EventWeek9PageContent() {
                 {/* 컬러 시스템 */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-3">
-                    컬러 시스템
+                    {T.colorSystem}
                   </label>
                   
                   {/* 주조색 */}
                   <div className="mb-4">
                     <label className="block text-xs font-medium text-gray-600 mb-2">
-                      주조색 (Primary)
+                      {T.primaryColor}
                     </label>
                     <div className="flex items-center gap-3">
                       <input
@@ -800,7 +830,7 @@ function EventWeek9PageContent() {
                   <div>
                     <div className="flex items-center justify-between mb-2">
                       <label className="block text-xs font-medium text-gray-600">
-                        보조색 (Secondary) - 최대 3개
+                        {T.secondaryMax}
                       </label>
                       <button
                         type="button"
@@ -809,7 +839,7 @@ function EventWeek9PageContent() {
                         className="flex items-center gap-1 px-3 py-1 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-xs"
                       >
                         <Plus className="w-3 h-3" />
-                        추가
+                        {T.addColor}
                       </button>
                     </div>
                     <div className="space-y-2">
@@ -860,14 +890,14 @@ function EventWeek9PageContent() {
                   {/* 배색 예시 프리뷰 */}
                   {(visualIdentity.colors.primary || visualIdentity.colors.secondary.length > 0) && (
                     <div className="mt-4 p-4 bg-gray-50 border border-gray-200 rounded-lg">
-                      <p className="text-xs font-medium text-gray-700 mb-2">배색 예시</p>
+                      <p className="text-xs font-medium text-gray-700 mb-2">{T.colorPreview}</p>
                       <div className="flex items-center gap-2">
                         <div className="px-4 py-2 rounded" style={{ backgroundColor: visualIdentity.colors.primary, color: '#fff' }}>
-                          티켓 예시
+                          {T.ticketExample}
                         </div>
                         {visualIdentity.colors.secondary.map((color, idx) => (
                           <div key={idx} className="px-4 py-2 rounded" style={{ backgroundColor: color, color: '#fff' }}>
-                            배너 {idx + 1}
+                            {T.banner} {idx + 1}
                           </div>
                         ))}
                       </div>
@@ -878,7 +908,7 @@ function EventWeek9PageContent() {
                 {/* 타이포그래피 무드 */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-3">
-                    타이포그래피 무드
+                    {T.typography}
                   </label>
                   <div className="flex flex-wrap gap-2">
                     {TYPOGRAPHY_STYLES.map((style) => (
@@ -915,7 +945,7 @@ function EventWeek9PageContent() {
                 {/* 그래픽 모티브 */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-3">
-                    그래픽 모티브
+                    {T.graphicMotive}
                   </label>
                   <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                     {GRAPHIC_MOTIFS.map((motif) => (
@@ -966,9 +996,9 @@ function EventWeek9PageContent() {
               <div className="flex items-center gap-3 mb-6">
                 <Sparkles className="w-6 h-6 text-indigo-600" />
                 <div>
-                  <h2 className="text-xl font-bold text-gray-900">굿즈 라인업 & 무드보드</h2>
+                  <h2 className="text-xl font-bold text-gray-900">{T.goodsLineup}</h2>
                   <p className="text-sm text-gray-600 mt-1">
-                    실제 제작할 굿즈 품목을 확정하고, 스타일 레퍼런스를 선택하여 무드보드를 완성합니다.
+                    {T.goodsLineupDesc}
                   </p>
                 </div>
               </div>
@@ -979,7 +1009,7 @@ function EventWeek9PageContent() {
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div>
                       <label className="block text-xs font-medium text-gray-700 mb-2">
-                        카테고리
+                        {T.category}
                       </label>
                       <select
                         value={selectedCategory}
@@ -990,7 +1020,7 @@ function EventWeek9PageContent() {
                         disabled={readonly}
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm disabled:bg-gray-100 disabled:cursor-not-allowed"
                       >
-                        <option value="">선택</option>
+                        <option value="">{T.selectCategory}</option>
                         {Object.keys(GOODS_CATEGORIES).map((cat) => (
                           <option key={cat} value={cat}>
                             {cat}
@@ -999,14 +1029,14 @@ function EventWeek9PageContent() {
                       </select>
                     </div>
                     <div>
-                      <label className="block text-xs font-medium text-gray-700 mb-2">품목</label>
+                      <label className="block text-xs font-medium text-gray-700 mb-2">{T.itemName}</label>
                       <select
                         value={selectedItemName}
                         onChange={(e) => setSelectedItemName(e.target.value)}
                         disabled={readonly || !selectedCategory}
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm disabled:bg-gray-100 disabled:cursor-not-allowed"
                       >
-                        <option value="">선택</option>
+                        <option value="">{T.selectItem}</option>
                         {availableItems.map((item) => (
                           <option key={item} value={item}>
                             {item}
@@ -1022,7 +1052,7 @@ function EventWeek9PageContent() {
                         className="w-full px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm"
                       >
                         <Plus className="w-4 h-4 inline mr-1" />
-                        굿즈 추가
+                        {T.addGoodsItem}
                       </button>
                     </div>
                   </div>
@@ -1034,9 +1064,9 @@ function EventWeek9PageContent() {
                     <div className="bg-white rounded-lg p-6 max-w-4xl w-full max-h-[90vh] overflow-y-auto">
                       <div className="flex items-center justify-between mb-4">
                         <h3 className="text-lg font-bold text-gray-900">
-                          {goodsLineup.find((g) => g.id === viewingItem)?.itemName} 스타일 선택
+                          {goodsLineup.find((g) => g.id === viewingItem)?.itemName} {T.selectStyles}
                           <span className="text-sm font-normal text-gray-500 ml-2">
-                            (최대 3개 선택)
+                            ({safeLanguage === 'ko' ? '최대 3개 선택' : 'Max 3'})
                           </span>
                         </h3>
                         <button
@@ -1084,7 +1114,7 @@ function EventWeek9PageContent() {
                           onClick={() => setViewingItem(null)}
                           className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
                         >
-                          완료
+                          {safeLanguage === 'ko' ? '완료' : 'Done'}
                         </button>
                       </div>
                     </div>
@@ -1118,7 +1148,7 @@ function EventWeek9PageContent() {
                         {/* 스타일 선택 버튼 */}
                         <div>
                           <label className="block text-xs font-medium text-gray-700 mb-2">
-                            스타일 레퍼런스 (최대 3개)
+                            {T.styleReference} ({safeLanguage === 'ko' ? '최대 3개' : 'Max 3'})
                           </label>
                           {GOODS_STYLE_LIBRARY[item.itemName] ? (
                             <button
@@ -1128,12 +1158,14 @@ function EventWeek9PageContent() {
                               className="w-full px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed text-sm text-left"
                             >
                               {item.selectedStyles.length > 0
-                                ? `${item.selectedStyles.length}개 선택됨`
-                                : '스타일 선택하기'}
+                                ? safeLanguage === 'ko' 
+                                  ? `${item.selectedStyles.length}개 선택됨`
+                                  : `${item.selectedStyles.length} selected`
+                                : safeLanguage === 'ko' ? '스타일 선택하기' : 'Select Styles'}
                             </button>
                           ) : (
                             <p className="text-xs text-gray-500">
-                              해당 품목의 스타일 라이브러리가 준비 중입니다.
+                              {safeLanguage === 'ko' ? '해당 품목의 스타일 라이브러리가 준비 중입니다.' : 'Style library for this item is being prepared.'}
                             </p>
                           )}
                           {item.selectedStyles.length > 0 && (
@@ -1158,14 +1190,14 @@ function EventWeek9PageContent() {
                         {/* 제작 사양 */}
                         <div>
                           <label className="block text-xs font-medium text-gray-700 mb-2">
-                            제작 사양
+                            {T.productionSpec}
                           </label>
                           <textarea
                             value={item.productionSpec}
                             onChange={(e) => updateGoodsItem(item.id, 'productionSpec', e.target.value)}
                             disabled={readonly}
                             rows={3}
-                            placeholder="예: 면 100%, 자수/나염, 예상 판매가 25,000원"
+                            placeholder={T.productionSpecPlaceholder}
                             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm resize-none disabled:bg-gray-100 disabled:cursor-not-allowed"
                           />
                         </div>
@@ -1174,14 +1206,14 @@ function EventWeek9PageContent() {
                       {/* 기획 의도 */}
                       <div>
                         <label className="block text-xs font-medium text-gray-700 mb-2">
-                          기획 의도
+                          {T.planningIntent}
                         </label>
                         <textarea
                           value={item.planningIntent}
                           onChange={(e) => updateGoodsItem(item.id, 'planningIntent', e.target.value)}
                           disabled={readonly}
                           rows={2}
-                          placeholder="예: 스태프 유니폼으로도 활용하며, 일상에서도 입을 수 있는 심플한 로고 플레이"
+                          placeholder={T.planningIntentPlaceholder}
                           className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm resize-none disabled:bg-gray-100 disabled:cursor-not-allowed"
                         />
                       </div>
@@ -1193,7 +1225,7 @@ function EventWeek9PageContent() {
                 {goodsLineup.length > 0 && (
                   <div className="mt-6 p-4 bg-gray-50 border border-gray-200 rounded-lg">
                     <h3 className="text-sm font-semibold text-gray-900 mb-4">
-                      전체 굿즈 무드보드
+                      {safeLanguage === 'ko' ? '전체 굿즈 무드보드' : 'Overall Goods Moodboard'}
                     </h3>
                     <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
                       {goodsLineup.map((item) => (

@@ -31,18 +31,24 @@ import { ProjectSettingsModal } from '@/components/workbook/ProjectSettingsModal
 import { ProjectSummaryModal } from '@/components/workbook/ProjectSummaryModal'
 import { WorkbookStatusBar } from '@/components/WorkbookStatusBar'
 import { useProjectAccess } from '@/hooks/useProjectAccess'
+import { useWorkbookCredit } from '@/hooks/useWorkbookCredit'
+import { EVENT_TRANSLATIONS } from '@/i18n/translations'
+import { useLanguage } from '@/contexts/LanguageContext'
 
 export const dynamic = 'force-dynamic'
 
-// 핵심 목표 옵션
-const CORE_GOALS = [
-  '브랜딩(인지도)',
-  '판매(매출)',
-  '커뮤니티(팬덤)',
-  '교육/정보전달',
-  '네트워킹',
-  '기타',
-]
+// 핵심 목표 옵션 (다국어 지원)
+const getCoreGoals = (language: 'en' | 'ko') => {
+  const goals = EVENT_TRANSLATIONS[language].session1.eventGoals
+  return [
+    goals.branding,
+    goals.sales,
+    goals.community,
+    goals.education,
+    goals.networking,
+    goals.other,
+  ]
+}
 
 interface ReferenceCard {
   id: number
@@ -73,6 +79,9 @@ function EventWeek3PageContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const projectId = searchParams.get('projectId') || ''
+  const { language } = useLanguage()
+  const T = EVENT_TRANSLATIONS[language].session3
+  const CORE_GOALS = getCoreGoals(language)
 
   // 권한 검증
   useProjectAccess(projectId)
@@ -101,6 +110,7 @@ function EventWeek3PageContent() {
     unhideProject,
   } = useProjectSettings(projectId)
   const { generateSummary } = useProjectSummary()
+  const { checkAndDeductCredit } = useWorkbookCredit(projectId, 3)
 
   // State
   const [toastVisible, setToastVisible] = useState(false)
@@ -258,6 +268,15 @@ function EventWeek3PageContent() {
       return
     }
 
+    // 최초 1회 저장 시 크레딧 차감
+    try {
+      await checkAndDeductCredit()
+    } catch (error: any) {
+      setToastMessage(error.message || '크레딧 차감 중 오류가 발생했습니다.')
+      setToastVisible(true)
+      return
+    }
+
     const eventData: EventWeek3Data = {
       references,
       swot,
@@ -300,6 +319,17 @@ function EventWeek3PageContent() {
       )
     ) {
       return
+    }
+
+    // 제출 시에도 크레딧 차감 (저장 시 차감 안 했을 경우)
+    if (!isSubmitted) {
+      try {
+        await checkAndDeductCredit()
+      } catch (error: any) {
+        setToastMessage(error.message || '크레딧 차감 중 오류가 발생했습니다.')
+        setToastVisible(true)
+        return
+      }
     }
 
     const eventData: EventWeek3Data = {
@@ -480,21 +510,10 @@ function EventWeek3PageContent() {
 
   // 이벤트 워크북용 회차 제목
   const getEventWeekTitle = useCallback((week: number): string => {
-    const eventTitles: { [key: number]: string } = {
-      1: 'Phase 1 - 행사 방향성 설정 및 트렌드 헌팅',
-      2: 'Phase 1 - 타겟 페르소나',
-      3: 'Phase 1 - 레퍼런스 벤치마킹 및 정량 분석',
-      4: 'Phase 1 - 행사 개요 및 환경 분석',
-      5: 'Phase 2 - 세계관 및 스토리텔링',
-      6: 'Phase 2 - 방문객 여정 지도',
-      7: 'Phase 2 - 킬러 콘텐츠 및 바이럴 기획',
-      8: 'Phase 2 - 마스터 플랜',
-      9: 'Phase 3 - 행사 브랜딩',
-      10: 'Phase 3 - 공간 조감도',
-      11: 'Phase 3 - D-Day 통합 실행 계획',
-      12: 'Phase 3 - 최종 피칭 및 검증',
-    }
-    return eventTitles[week] || `${week}회차`
+    // 사이드바는 항상 영어 (Global Shell)
+    const titles = EVENT_TRANSLATIONS.en.titles
+    const title = titles[week - 1] || `Week ${week}`
+    return title
   }, [])
 
   const getStepStatus = (weekNumber: number) => {
@@ -623,9 +642,9 @@ function EventWeek3PageContent() {
                 <div className="flex items-center gap-3">
                   <BarChart3 className="w-6 h-6 text-indigo-600" />
                   <div>
-                    <h2 className="text-xl font-bold text-gray-900">레퍼런스 데이터 카드</h2>
+                    <h2 className="text-xl font-bold text-gray-900">{T.referenceData}</h2>
                     <p className="text-sm text-gray-600 mt-1">
-                      경쟁하거나 참고할 만한 행사의 정보를 정량적/정성적으로 분석합니다.
+                      {T.description}
                     </p>
                   </div>
                 </div>
@@ -635,7 +654,7 @@ function EventWeek3PageContent() {
                 <div className="flex items-start gap-2">
                   <Info className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
                   <p className="text-sm text-blue-800">
-                    <strong>가이드:</strong> 최소 3개 이상의 레퍼런스를 분석해보세요. 다양한 유형의 행사를 비교하면 더 객관적인 기준을 마련할 수 있습니다.
+                    {T.guide}
                   </p>
                 </div>
               </div>
@@ -651,13 +670,13 @@ function EventWeek3PageContent() {
                         <div className="w-8 h-8 rounded-full bg-indigo-600 text-white flex items-center justify-center font-semibold">
                           {index + 1}
                         </div>
-                        <h3 className="font-semibold text-gray-900">레퍼런스 {index + 1}</h3>
+                        <h3 className="font-semibold text-gray-900">{T.referenceData} {index + 1}</h3>
                       </div>
                       {references.length > 1 && !readonly && (
                         <button
                           onClick={() => removeReference(ref.id)}
                           className="p-2 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors"
-                          title="레퍼런스 삭제"
+                          title={T.removeCard}
                         >
                           <Trash2 className="w-5 h-5" />
                         </button>
@@ -737,26 +756,26 @@ function EventWeek3PageContent() {
                         <div className="space-y-4">
                           <h4 className="text-sm font-semibold text-gray-700 flex items-center gap-2">
                             <Target className="w-4 h-4" />
-                            기본 정보
+                            {T.basicInfo}
                           </h4>
 
                           <div>
                             <label className="block text-xs font-medium text-gray-700 mb-1">
-                              행사명 <span className="text-red-500">*</span>
+                              {T.eventName} <span className="text-red-500">*</span>
                             </label>
                             <input
                               type="text"
                               value={ref.name}
                               onChange={(e) => updateReference(ref.id, 'name', e.target.value)}
                               disabled={readonly}
-                              placeholder="예: 더현대 서울 팝업"
+                              placeholder={T.placeholders.eventName}
                               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm disabled:bg-gray-100 disabled:cursor-not-allowed"
                             />
                           </div>
 
                           <div>
                             <label className="block text-xs font-medium text-gray-700 mb-1">
-                              핵심 목표 <span className="text-red-500">*</span>
+                              {T.coreGoal} <span className="text-red-500">*</span>
                             </label>
                             <div className="flex flex-wrap gap-2">
                               {CORE_GOALS.map((goal) => (
@@ -782,7 +801,7 @@ function EventWeek3PageContent() {
                         <div className="space-y-4">
                           <h4 className="text-sm font-semibold text-gray-700 flex items-center gap-2">
                             <TrendingUp className="w-4 h-4" />
-                            정량 데이터
+                            {T.quantitativeData}
                           </h4>
 
                           <div className="space-y-3">
@@ -791,14 +810,14 @@ function EventWeek3PageContent() {
                               <div>
                                 <label className="block text-xs font-medium text-gray-700 mb-1 flex items-center gap-1">
                                   <DollarSign className="w-3 h-3" />
-                                  총 예산 (만원)
+                                  {T.totalBudget} ({T.budgetUnit})
                                 </label>
                                 <input
                                   type="text"
                                   value={ref.budget}
                                   onChange={(e) => updateReference(ref.id, 'budget', e.target.value)}
                                   disabled={readonly}
-                                  placeholder="예: 5000"
+                                  placeholder={T.placeholders.budget}
                                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm disabled:bg-gray-100 disabled:cursor-not-allowed"
                                 />
                               </div>
@@ -806,28 +825,28 @@ function EventWeek3PageContent() {
                               <div>
                                 <label className="block text-xs font-medium text-gray-700 mb-1 flex items-center gap-1">
                                   <Calendar className="w-3 h-3" />
-                                  기간 (일)
+                                  {T.duration} ({T.durationUnit})
                                 </label>
                                 <input
                                   type="text"
                                   value={ref.duration}
                                   onChange={(e) => updateReference(ref.id, 'duration', e.target.value)}
                                   disabled={readonly}
-                                  placeholder="예: 30"
+                                  placeholder={T.placeholders.duration}
                                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm disabled:bg-gray-100 disabled:cursor-not-allowed"
                                 />
                               </div>
 
                               <div>
                                 <label className="block text-xs font-medium text-gray-700 mb-1">
-                                  규모 (평)
+                                  {T.scale} ({T.scaleUnit})
                                 </label>
                                 <input
                                   type="text"
                                   value={ref.scale}
                                   onChange={(e) => updateReference(ref.id, 'scale', e.target.value)}
                                   disabled={readonly}
-                                  placeholder="예: 200"
+                                  placeholder={T.placeholders.scale}
                                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm disabled:bg-gray-100 disabled:cursor-not-allowed"
                                 />
                               </div>
@@ -838,7 +857,7 @@ function EventWeek3PageContent() {
                               <div>
                                 <label className="block text-xs font-medium text-gray-700 mb-1 flex items-center gap-1">
                                   <Users className="w-3 h-3" />
-                                  공개 방문객 수
+                                  {T.publicVisitors}
                                 </label>
                                 <input
                                   type="text"
@@ -847,7 +866,7 @@ function EventWeek3PageContent() {
                                     updateReference(ref.id, 'officialVisitors', e.target.value)
                                   }
                                   disabled={readonly}
-                                  placeholder="예: 50000"
+                                  placeholder={T.placeholders.visitors}
                                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm disabled:bg-gray-100 disabled:cursor-not-allowed"
                                 />
                               </div>
@@ -855,7 +874,7 @@ function EventWeek3PageContent() {
                               <div>
                                 <label className="block text-xs font-medium text-gray-700 mb-1 flex items-center gap-1">
                                   <Users className="w-3 h-3" />
-                                  예상 방문객 수
+                                  {T.expectedVisitors}
                                 </label>
                                 <input
                                   type="text"
@@ -864,7 +883,7 @@ function EventWeek3PageContent() {
                                     updateReference(ref.id, 'estimatedVisitors', e.target.value)
                                   }
                                   disabled={readonly}
-                                  placeholder="예: 45000"
+                                  placeholder={T.placeholders.visitors}
                                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm disabled:bg-gray-100 disabled:cursor-not-allowed"
                                 />
                               </div>
@@ -878,28 +897,28 @@ function EventWeek3PageContent() {
                     <div className="grid lg:grid-cols-2 gap-4 mt-6 pt-6 border-t border-gray-200">
                       <div>
                         <label className="block text-xs font-semibold text-green-700 mb-2">
-                          Pros (배울 점)
+                          {T.pros}
                         </label>
                         <textarea
                           value={ref.pros}
                           onChange={(e) => updateReference(ref.id, 'pros', e.target.value)}
                           disabled={readonly}
                           rows={4}
-                          placeholder="이 행사에서 우리 행사에 적용하고 싶은 장점을 작성하세요."
+                          placeholder={T.placeholders.pros}
                           className="w-full px-3 py-2 border border-green-200 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent text-sm resize-none disabled:bg-gray-100 disabled:cursor-not-allowed"
                         />
                       </div>
 
                       <div>
                         <label className="block text-xs font-semibold text-red-700 mb-2">
-                          Cons (아쉬운 점)
+                          {T.cons}
                         </label>
                         <textarea
                           value={ref.cons}
                           onChange={(e) => updateReference(ref.id, 'cons', e.target.value)}
                           disabled={readonly}
                           rows={4}
-                          placeholder="반면교사로 삼아야 할 단점이나 개선 포인트를 작성하세요."
+                          placeholder={T.placeholders.cons}
                           className="w-full px-3 py-2 border border-red-200 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent text-sm resize-none disabled:bg-gray-100 disabled:cursor-not-allowed"
                         />
                       </div>
@@ -914,7 +933,7 @@ function EventWeek3PageContent() {
                     className="w-full py-4 px-6 border-2 border-dashed border-gray-300 rounded-xl hover:border-indigo-400 hover:bg-indigo-50 transition-colors flex items-center justify-center gap-2 text-gray-600 hover:text-indigo-600 font-medium"
                   >
                     <Plus className="w-5 h-5" />
-                    레퍼런스 추가
+                    {T.addCard}
                   </button>
                 )}
               </div>
@@ -924,10 +943,10 @@ function EventWeek3PageContent() {
             <div className="glass rounded-2xl shadow-lg p-8 mb-8">
               <div className="flex items-center gap-3 mb-6">
                 <Square className="w-6 h-6 text-indigo-600" />
-                <h2 className="text-xl font-bold text-gray-900">SWOT 분석</h2>
+                <h2 className="text-xl font-bold text-gray-900">{T.swotAnalysis}</h2>
               </div>
               <p className="text-sm text-gray-600 mb-6">
-                레퍼런스 분석을 통해 도출된 인사이트를 내 행사의 전략으로 연결합니다.
+                {T.swotDescription}
               </p>
 
               {/* SWOT 매트릭스 */}
@@ -938,17 +957,17 @@ function EventWeek3PageContent() {
                     <div className="w-8 h-8 rounded-full bg-green-600 text-white flex items-center justify-center font-bold text-sm">
                       S
                     </div>
-                    <h4 className="font-semibold text-green-900">Strength (강점)</h4>
+                    <h4 className="font-semibold text-green-900">{T.strength}</h4>
                   </div>
                   <p className="text-xs text-green-700 mb-2">
-                    레퍼런스 대비 우리 행사가 가진 내부적 강점
+                    {T.strengthDesc}
                   </p>
                   <textarea
                     value={swot.strength}
                     onChange={(e) => setSwot({ ...swot, strength: e.target.value })}
                     disabled={readonly}
                     rows={6}
-                    placeholder="예: 저예산으로도 고품질 콘텐츠 제작 가능, 강한 SNS 커뮤니티 보유"
+                    placeholder={T.placeholders.strength}
                     className="w-full px-3 py-2 border border-green-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent text-sm resize-none disabled:bg-green-100 disabled:cursor-not-allowed"
                   />
                 </div>
@@ -959,17 +978,17 @@ function EventWeek3PageContent() {
                     <div className="w-8 h-8 rounded-full bg-red-600 text-white flex items-center justify-center font-bold text-sm">
                       W
                     </div>
-                    <h4 className="font-semibold text-red-900">Weakness (약점)</h4>
+                    <h4 className="font-semibold text-red-900">{T.weakness}</h4>
                   </div>
                   <p className="text-xs text-red-700 mb-2">
-                    예산 부족, 인지도 부족 등 내부적 약점
+                    {T.weaknessDesc}
                   </p>
                   <textarea
                     value={swot.weakness}
                     onChange={(e) => setSwot({ ...swot, weakness: e.target.value })}
                     disabled={readonly}
                     rows={6}
-                    placeholder="예: 브랜드 인지도 낮음, 제한된 예산, 체험형 콘텐츠 제작 경험 부족"
+                    placeholder={T.placeholders.weakness}
                     className="w-full px-3 py-2 border border-red-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent text-sm resize-none disabled:bg-red-100 disabled:cursor-not-allowed"
                   />
                 </div>
@@ -980,17 +999,17 @@ function EventWeek3PageContent() {
                     <div className="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold text-sm">
                       O
                     </div>
-                    <h4 className="font-semibold text-blue-900">Opportunity (기회)</h4>
+                    <h4 className="font-semibold text-blue-900">{T.opportunity}</h4>
                   </div>
                   <p className="text-xs text-blue-700 mb-2">
-                    경쟁 행사의 Cons에서 발견한 외부적 기회 요인
+                    {T.opportunityDesc}
                   </p>
                   <textarea
                     value={swot.opportunity}
                     onChange={(e) => setSwot({ ...swot, opportunity: e.target.value })}
                     disabled={readonly}
                     rows={6}
-                    placeholder="예: 경쟁 행사의 단점(혼잡도, 접근성)을 개선할 수 있는 기회"
+                    placeholder={T.placeholders.opportunity}
                     className="w-full px-3 py-2 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm resize-none disabled:bg-blue-100 disabled:cursor-not-allowed"
                   />
                   <p className="text-xs text-blue-600 mt-2 italic">
@@ -1007,14 +1026,14 @@ function EventWeek3PageContent() {
                     <h4 className="font-semibold text-orange-900">Threat (위협)</h4>
                   </div>
                   <p className="text-xs text-orange-700 mb-2">
-                    유사 시기 개최되는 대형 행사 등 외부적 위협 요인
+                    {T.threatDesc}
                   </p>
                   <textarea
                     value={swot.threat}
                     onChange={(e) => setSwot({ ...swot, threat: e.target.value })}
                     disabled={readonly}
                     rows={6}
-                    placeholder="예: 같은 기간 대형 브랜드 행사 개최, 날씨 불확실성, 공간 대여비 상승"
+                    placeholder={T.placeholders.threat}
                     className="w-full px-3 py-2 border border-orange-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent text-sm resize-none disabled:bg-orange-100 disabled:cursor-not-allowed"
                   />
                 </div>

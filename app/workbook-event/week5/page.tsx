@@ -28,41 +28,52 @@ import { ProjectSettingsModal } from '@/components/workbook/ProjectSettingsModal
 import { ProjectSummaryModal } from '@/components/workbook/ProjectSummaryModal'
 import { WorkbookStatusBar } from '@/components/WorkbookStatusBar'
 import { useProjectAccess } from '@/hooks/useProjectAccess'
+import { useWorkbookCredit } from '@/hooks/useWorkbookCredit'
+import { EVENT_TRANSLATIONS } from '@/i18n/translations'
+import { useLanguage } from '@/contexts/LanguageContext'
 
 export const dynamic = 'force-dynamic'
 
-// 테마 키워드 풀
-const THEME_KEYWORDS = [
-  '힙한',
-  '미래지향적',
-  '레트로',
-  '몽환적',
-  '친환경적인',
-  '럭셔리한',
-  '아늑한',
-  '활기찬',
-  '신비로운',
-  '모던한',
-  '빈티지',
-  '미니멀',
-  '컬러풀',
-  '우아한',
-  '과감한',
-  '감성적인',
-  '기타',
-]
+// 테마 키워드 풀 (다국어 지원)
+const getThemeKeywords = (language: 'en' | 'ko') => {
+  const safeLang = language || 'ko'
+  const keywords = EVENT_TRANSLATIONS[safeLang]?.session5?.themeKeywordsPool || EVENT_TRANSLATIONS['ko'].session5.themeKeywordsPool
+  return [
+    keywords.hip,
+    keywords.futuristic,
+    keywords.retro,
+    keywords.dreamy,
+    keywords.eco,
+    keywords.luxury,
+    keywords.cozy,
+    keywords.energetic,
+    keywords.mysterious,
+    keywords.modern,
+    keywords.vintage,
+    keywords.minimal,
+    keywords.colorful,
+    keywords.elegant,
+    keywords.bold,
+    keywords.emotional,
+    keywords.other,
+  ]
+}
 
-// 타겟 감정 옵션
-const TARGET_EMOTIONS = [
-  '호기심',
-  '긴박함',
-  '소속감',
-  '기대감',
-  '관심',
-  'FOMO (놓칠 수 없다는 불안)',
-  '열광',
-  '기타',
-]
+// 타겟 감정 옵션 (다국어 지원)
+const getTargetEmotions = (language: 'en' | 'ko') => {
+  const safeLang = language || 'ko'
+  const emotions = EVENT_TRANSLATIONS[safeLang]?.session5?.targetEmotions || EVENT_TRANSLATIONS['ko'].session5.targetEmotions
+  return [
+    emotions.curiosity,
+    emotions.urgency,
+    emotions.belonging,
+    emotions.anticipation,
+    emotions.interest,
+    emotions.fomo,
+    emotions.enthusiasm,
+    emotions.other,
+  ]
+}
 
 interface EventWeek5Data {
   themeKeywords: string[] // 테마 키워드
@@ -87,6 +98,11 @@ function EventWeek5PageContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const projectId = searchParams.get('projectId') || ''
+  const { language } = useLanguage()
+  const safeLanguage = language || 'ko'
+  const T = EVENT_TRANSLATIONS[safeLanguage]?.session5 || EVENT_TRANSLATIONS['ko'].session5
+  const THEME_KEYWORDS = getThemeKeywords(safeLanguage)
+  const TARGET_EMOTIONS = getTargetEmotions(safeLanguage)
 
   // 권한 검증
   useProjectAccess(projectId)
@@ -115,6 +131,7 @@ function EventWeek5PageContent() {
     unhideProject,
   } = useProjectSettings(projectId)
   const { generateSummary } = useProjectSummary()
+  const { checkAndDeductCredit } = useWorkbookCredit(projectId, 5)
 
   // State
   const [toastVisible, setToastVisible] = useState(false)
@@ -287,6 +304,15 @@ function EventWeek5PageContent() {
       return
     }
 
+    // 최초 1회 저장 시 크레딧 차감
+    try {
+      await checkAndDeductCredit()
+    } catch (error: any) {
+      setToastMessage(error.message || '크레딧 차감 중 오류가 발생했습니다.')
+      setToastVisible(true)
+      return
+    }
+
     const eventData: EventWeek5Data = {
       themeKeywords,
       customKeyword: themeKeywords.filter((k) => !THEME_KEYWORDS.includes(k)).join(', '),
@@ -331,6 +357,17 @@ function EventWeek5PageContent() {
       )
     ) {
       return
+    }
+
+    // 제출 시에도 크레딧 차감 (저장 시 차감 안 했을 경우)
+    if (!isSubmitted) {
+      try {
+        await checkAndDeductCredit()
+      } catch (error: any) {
+        setToastMessage(error.message || '크레딧 차감 중 오류가 발생했습니다.')
+        setToastVisible(true)
+        return
+      }
     }
 
     const eventData: EventWeek5Data = {
@@ -520,21 +557,10 @@ function EventWeek5PageContent() {
 
   // 이벤트 워크북용 회차 제목
   const getEventWeekTitle = useCallback((week: number): string => {
-    const eventTitles: { [key: number]: string } = {
-      1: 'Phase 1 - 행사 방향성 설정 및 트렌드 헌팅',
-      2: 'Phase 1 - 타겟 페르소나',
-      3: 'Phase 1 - 레퍼런스 벤치마킹 및 정량 분석',
-      4: 'Phase 1 - 행사 개요 및 환경 분석',
-      5: 'Phase 2 - 세계관 및 스토리텔링',
-      6: 'Phase 2 - 방문객 여정 지도',
-      7: 'Phase 2 - 킬러 콘텐츠 및 바이럴 기획',
-      8: 'Phase 2 - 마스터 플랜',
-      9: 'Phase 3 - 행사 브랜딩',
-      10: 'Phase 3 - 공간 조감도',
-      11: 'Phase 3 - D-Day 통합 실행 계획',
-      12: 'Phase 3 - 최종 피칭 및 검증',
-    }
-    return eventTitles[week] || `${week}회차`
+    // 사이드바는 항상 영어 (Global Shell)
+    const titles = EVENT_TRANSLATIONS.en.titles
+    const title = titles[week - 1] || `Week ${week}`
+    return title
   }, [])
 
   const getStepStatus = (weekNumber: number) => {
@@ -663,9 +689,9 @@ function EventWeek5PageContent() {
               <div className="flex items-center gap-3 mb-6">
                 <Sparkles className="w-6 h-6 text-indigo-600" />
                 <div>
-                  <h2 className="text-xl font-bold text-gray-900">테마 키워드 셀렉터</h2>
+                  <h2 className="text-xl font-bold text-gray-900">{T.themeKeywordSelector}</h2>
                   <p className="text-sm text-gray-600 mt-1">
-                    행사의 전반적인 분위기와 감성을 결정하는 핵심 형용사를 선정합니다.
+                    {T.themeKeywordDescription}
                   </p>
                 </div>
               </div>
@@ -673,7 +699,7 @@ function EventWeek5PageContent() {
               <div className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-3">
-                    테마 키워드 <span className="text-red-500">*</span>
+                    {T.themeKeywords} <span className="text-red-500">*</span>
                     <span className="text-xs text-gray-500 ml-2">(3~5개 권장)</span>
                   </label>
                   <div className="flex flex-wrap gap-2 mb-3">
@@ -707,7 +733,7 @@ function EventWeek5PageContent() {
                           }
                         }}
                         disabled={readonly}
-                        placeholder="직접 키워드를 입력하세요"
+                        placeholder={T.placeholders.customKeyword}
                         className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm disabled:bg-gray-100 disabled:cursor-not-allowed"
                       />
                       <button
@@ -716,7 +742,7 @@ function EventWeek5PageContent() {
                         disabled={readonly || !customKeyword.trim()}
                         className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm"
                       >
-                        추가
+                        {T.addButton}
                       </button>
                     </div>
                   )}
@@ -761,9 +787,9 @@ function EventWeek5PageContent() {
               <div className="flex items-center gap-3 mb-6">
                 <BookOpen className="w-6 h-6 text-indigo-600" />
                 <div>
-                  <h2 className="text-xl font-bold text-gray-900">세계관 빌더</h2>
+                  <h2 className="text-xl font-bold text-gray-900">{T.worldviewBuilder}</h2>
                   <p className="text-sm text-gray-600 mt-1">
-                    방문객이 행사장에 들어서는 순간 경험하게 될 가상의 설정이나 컨셉을 구체적인 서사로 작성합니다.
+                    {T.worldviewDescription}
                   </p>
                 </div>
               </div>
@@ -772,35 +798,35 @@ function EventWeek5PageContent() {
                 {/* 컨셉 정의 */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    컨셉 정의 <span className="text-red-500">*</span>
+                    {T.conceptStatement} <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="text"
                     value={universe.concept}
                     onChange={(e) => setUniverse({ ...universe, concept: e.target.value })}
                     disabled={readonly}
-                    placeholder="예: 이곳은 단순한 팝업스토어가 아니라, 2030년 서울의 라이프스타일을 선보이는 미래 전시관입니다."
+                    placeholder={T.placeholders.concept}
                     className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm disabled:bg-gray-100 disabled:cursor-not-allowed"
                   />
                 </div>
 
                 {/* 공간 스토리텔링 */}
                 <div>
-                  <h4 className="text-sm font-semibold text-gray-900 mb-4">공간 스토리텔링</h4>
+                  <h4 className="text-sm font-semibold text-gray-900 mb-4">{T.spaceStorytelling}</h4>
 
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     {/* 입구 (Portal) */}
                     <div>
                       <label className="block text-xs font-medium text-gray-700 mb-2 flex items-center gap-2">
                         <Zap className="w-4 h-4" />
-                        입구 (Portal)
+                        {T.entrance}
                       </label>
                       <textarea
                         value={universe.portal}
                         onChange={(e) => setUniverse({ ...universe, portal: e.target.value })}
                         disabled={readonly}
                         rows={6}
-                        placeholder="예: 어두운 터널을 통과하면 갑자기 밝은 네온사인이 반짝이는 미래 도시의 거리로 들어서게 됩니다..."
+                        placeholder={T.placeholders.portal}
                         className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm resize-none disabled:bg-gray-100 disabled:cursor-not-allowed"
                       />
                     </div>
@@ -809,14 +835,14 @@ function EventWeek5PageContent() {
                     <div>
                       <label className="block text-xs font-medium text-gray-700 mb-2 flex items-center gap-2">
                         <Lightbulb className="w-4 h-4" />
-                        여정 (Journey)
+                        {T.journey}
                       </label>
                       <textarea
                         value={universe.journey}
                         onChange={(e) => setUniverse({ ...universe, journey: e.target.value })}
                         disabled={readonly}
                         rows={6}
-                        placeholder="예: 입장 후 첫 구역에서는 몽환적인 영상을 감상하며, 두 번째 구역에서는 인터랙티브 체험을 통해 직접 참여하게 됩니다..."
+                        placeholder={T.placeholders.journey}
                         className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm resize-none disabled:bg-gray-100 disabled:cursor-not-allowed"
                       />
                     </div>
@@ -825,14 +851,14 @@ function EventWeek5PageContent() {
                     <div>
                       <label className="block text-xs font-medium text-gray-700 mb-2 flex items-center gap-2">
                         <Heart className="w-4 h-4" />
-                        캐릭터/오브제 설정
+                        {T.object}
                       </label>
                       <textarea
                         value={universe.character}
                         onChange={(e) => setUniverse({ ...universe, character: e.target.value })}
                         disabled={readonly}
                         rows={6}
-                        placeholder="예: 반투명한 네온 큐브 오브제가 공간 곳곳에 배치되어 있으며, 이를 통해 방문객과 상호작용합니다..."
+                        placeholder={T.placeholders.character}
                         className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm resize-none disabled:bg-gray-100 disabled:cursor-not-allowed"
                       />
                     </div>
@@ -846,9 +872,9 @@ function EventWeek5PageContent() {
               <div className="flex items-center gap-3 mb-6">
                 <Share2 className="w-6 h-6 text-indigo-600" />
                 <div>
-                  <h2 className="text-xl font-bold text-gray-900">바이럴 티징 플래너</h2>
+                  <h2 className="text-xl font-bold text-gray-900">{T.viralTeasing}</h2>
                   <p className="text-sm text-gray-600 mt-1">
-                    행사 개최 전, 잠재 방문객의 기대감을 증폭시키기 위해 SNS 등에 순차적으로 공개할 스토리텔링을 설계합니다.
+                    {T.viralTeasingDescription}
                   </p>
                 </div>
               </div>
@@ -857,10 +883,10 @@ function EventWeek5PageContent() {
                 {/* 타겟 감정 설정 */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-3">
-                    타겟 감정 설정
+                    {T.targetEmotion}
                   </label>
                   <p className="text-xs text-gray-500 mb-3">
-                    티징 단계에서 고객이 느끼길 바라는 감정을 선택하세요.
+                    {T.targetEmotionDescription || 'Select the emotion you want customers to feel during the teasing phase.'}
                   </p>
                   <div className="flex flex-wrap gap-2">
                     {TARGET_EMOTIONS.map((emotion) => (
@@ -888,7 +914,7 @@ function EventWeek5PageContent() {
                           setViralTeasing({ ...viralTeasing, customEmotion: e.target.value })
                         }
                         disabled={readonly}
-                        placeholder="기타 감정을 입력하세요"
+                        placeholder={T.placeholders.customEmotion}
                         className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm disabled:bg-gray-100 disabled:cursor-not-allowed"
                       />
                     </div>

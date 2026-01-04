@@ -27,8 +27,7 @@ import { ProjectSettingsModal } from '@/components/workbook/ProjectSettingsModal
 import { ProjectSummaryModal } from '@/components/workbook/ProjectSummaryModal'
 import { WorkbookStatusBar } from '@/components/WorkbookStatusBar'
 import { useProjectAccess } from '@/hooks/useProjectAccess'
-
-
+import { useWorkbookCredit } from '@/hooks/useWorkbookCredit'
 
 interface ScreenLayout {
   screenType: 'main' | 'feature' | 'result'
@@ -80,6 +79,7 @@ function Week10PageContent() {
     deleteProject,
   } = useProjectSettings(projectId)
   const { generateSummary } = useProjectSummary()
+  const { checkAndDeductCredit } = useWorkbookCredit(projectId, 10)
 
   // State
   const [toastVisible, setToastVisible] = useState(false)
@@ -419,6 +419,15 @@ function Week10PageContent() {
       return
     }
 
+    // 최초 1회 저장 시 크레딧 차감
+    try {
+      await checkAndDeductCredit()
+    } catch (error: any) {
+      setToastMessage(error.message || '크레딧 차감 중 오류가 발생했습니다.')
+      setToastVisible(true)
+      return
+    }
+
     const progress = calculateProgress()
     const success = await saveStepData(10, formData, progress)
 
@@ -442,6 +451,15 @@ function Week10PageContent() {
 
     if (!isSubmitted) {
       if (!confirm('워크북을 제출하시겠습니까?\n제출 후에는 수정이 제한됩니다.')) {
+        return
+      }
+
+      // 제출 시에도 크레딧 차감 (저장 시 차감 안 했을 경우)
+      try {
+        await checkAndDeductCredit()
+      } catch (error: any) {
+        setToastMessage(error.message || '크레딧 차감 중 오류가 발생했습니다.')
+        setToastVisible(true)
         return
       }
     }

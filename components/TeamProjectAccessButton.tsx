@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { createClient } from '@/utils/supabase/client'
 import { useRouter } from 'next/navigation'
 import { Users, X, ArrowRight } from 'lucide-react'
+import { GLOBAL_UI } from '@/i18n/translations'
 
 export function TeamProjectAccessButton() {
   const [showModal, setShowModal] = useState(false)
@@ -24,7 +25,7 @@ export function TeamProjectAccessButton() {
       } = await supabase.auth.getUser()
 
       if (!user || !user.email) {
-        throw new Error('로그인이 필요합니다.')
+        throw new Error('Login required.')
       }
 
       // 서버 사이드 API를 통해 팀 프로젝트 접근 (RLS 정책 우회)
@@ -45,7 +46,7 @@ export function TeamProjectAccessButton() {
           statusText: response.statusText,
           data,
         })
-        throw new Error(data.error || '팀 프로젝트 접속에 실패했습니다.')
+        throw new Error(data.error || 'Failed to access team project.')
       }
 
       // 접근 성공 - 로컬 스토리지에 접근 가능한 팀 프로젝트 ID 추가
@@ -66,7 +67,7 @@ export function TeamProjectAccessButton() {
       window.location.href = '/dashboard'
     } catch (error: any) {
       console.error('팀 프로젝트 접속 오류:', error)
-      setError(error.message || '팀 프로젝트 접속에 실패했습니다.')
+      setError(error.message || 'Failed to access team project.')
       setLoading(false)
     }
   }
@@ -78,14 +79,14 @@ export function TeamProjectAccessButton() {
         className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl font-medium hover:from-indigo-700 hover:to-purple-700 transition-all shadow-lg hover:shadow-xl"
       >
         <Users className="w-5 h-5" />
-        팀 프로젝트 접속
+        {GLOBAL_UI.teamProjectAccess}
       </button>
 
       {showModal && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-8">
             <div className="flex items-center justify-between mb-6">
-              <h2 className="text-2xl font-bold text-gray-900">팀 프로젝트 접속</h2>
+              <h2 className="text-2xl font-bold text-gray-900">{GLOBAL_UI.teamProjectAccess}</h2>
               <button
                 onClick={() => {
                   setShowModal(false)
@@ -99,13 +100,13 @@ export function TeamProjectAccessButton() {
             </div>
 
             <p className="text-gray-600 mb-6">
-              프로젝트 관리자로부터 받은 팀 코드를 입력해주세요.
+              {GLOBAL_UI.enterTeamCode}
             </p>
 
             <form onSubmit={handleAccess} className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  팀 코드
+                  {GLOBAL_UI.teamCode}
                 </label>
                 <input
                   type="text"
@@ -116,7 +117,7 @@ export function TeamProjectAccessButton() {
                   }}
                   required
                   className="input-field"
-                  placeholder="예: DP7A2B9K"
+                  placeholder={GLOBAL_UI.teamCodePlaceholder}
                   maxLength={9}
                 />
               </div>
@@ -137,7 +138,7 @@ export function TeamProjectAccessButton() {
                   }}
                   className="btn-secondary flex-1"
                 >
-                  취소
+                  {GLOBAL_UI.cancel}
                 </button>
                 <button
                   type="submit"
@@ -145,10 +146,10 @@ export function TeamProjectAccessButton() {
                   className="btn-primary flex-1 disabled:opacity-40 disabled:cursor-not-allowed inline-flex items-center justify-center gap-2"
                 >
                   {loading ? (
-                    '접속 중...'
+                    'Connecting...'
                   ) : (
                     <>
-                      접속하기
+                      {GLOBAL_UI.accessTeamProject}
                       <ArrowRight className="w-4 h-4" />
                     </>
                   )}

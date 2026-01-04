@@ -28,60 +28,77 @@ import { ProjectSettingsModal } from '@/components/workbook/ProjectSettingsModal
 import { ProjectSummaryModal } from '@/components/workbook/ProjectSummaryModal'
 import { WorkbookStatusBar } from '@/components/WorkbookStatusBar'
 import { useProjectAccess } from '@/hooks/useProjectAccess'
+import { useWorkbookCredit } from '@/hooks/useWorkbookCredit'
+import { EVENT_TRANSLATIONS } from '@/i18n/translations'
+import { useLanguage } from '@/contexts/LanguageContext'
 
 export const dynamic = 'force-dynamic'
 
-// 파트 구분 옵션
-const TASK_PARTS = ['기획/운영', '디자인/제작', '홍보/마케팅']
-
-// 시점별 기본 과업 템플릿
-const DEFAULT_TASKS_BY_PHASE: { [key: string]: Array<{ part: string; task: string }> } = {
-  'D-30': [
-    { part: '기획/운영', task: '대관 계약 체결' },
-    { part: '기획/운영', task: '협력사 선정' },
-    { part: '기획/운영', task: '인허가 검토' },
-  ],
-  'D-14': [
-    { part: '디자인/제작', task: '제작물 발주' },
-    { part: '홍보/마케팅', task: '홍보 콘텐츠 배포' },
-    { part: '홍보/마케팅', task: '사전 신청 오픈' },
-  ],
-  'D-7': [
-    { part: '기획/운영', task: '물품 리스트 확인' },
-    { part: '기획/운영', task: '스태프 교육' },
-    { part: '기획/운영', task: '리허설 준비' },
-  ],
-  'D-1': [
-    { part: '디자인/제작', task: '현장 세팅' },
-    { part: '기획/운영', task: '리허설 진행' },
-  ],
-  'D+7': [
-    { part: '기획/운영', task: '정산' },
-    { part: '기획/운영', task: '결과 보고' },
-    { part: '홍보/마케팅', task: '감사 인사' },
-  ],
+// 파트 구분 옵션 (다국어 지원)
+const getTaskParts = (language: 'en' | 'ko') => {
+  const safeLang = language || 'ko'
+  const parts = EVENT_TRANSLATIONS[safeLang].session11.taskParts
+  return [parts.planning, parts.design, parts.marketing]
 }
 
-// 사후 관리 카테고리
-const POST_EVENT_CATEGORIES = {
-  철수및원상복구: [
-    '렌탈 물품 반납 확인',
-    '폐기물 처리',
-    '시설 파손 여부 점검',
-    '원상복구 완료 확인',
-  ],
-  정산및행정: [
-    '세금계산서 발행',
-    '스태프 인건비 지급',
-    '예산 실집행 내역 정리',
-    '계약서 정리',
-  ],
-  데이터및피드백: [
-    '현장 사진 백업',
-    '방문객 방명록/설문지 수거',
-    'SNS 후기 모니터링',
-    '방문객 데이터 분석',
-  ],
+// 시점별 기본 과업 템플릿 (다국어 지원)
+const getDefaultTasksByPhase = (language: 'en' | 'ko') => {
+  const safeLang = language || 'ko'
+  const parts = EVENT_TRANSLATIONS[safeLang].session11.taskParts
+  const tasks = EVENT_TRANSLATIONS[safeLang].session11.defaultTasks
+  return {
+    'D-30': [
+      { part: parts.planning, task: tasks.d30.venueContract },
+      { part: parts.planning, task: tasks.d30.vendorSelection },
+      { part: parts.planning, task: tasks.d30.permitReview },
+    ],
+    'D-14': [
+      { part: parts.design, task: tasks.d14.productionOrder },
+      { part: parts.marketing, task: tasks.d14.contentRelease },
+      { part: parts.marketing, task: tasks.d14.preBookingOpen },
+    ],
+    'D-7': [
+      { part: parts.planning, task: tasks.d7.itemListCheck },
+      { part: parts.planning, task: tasks.d7.staffTraining },
+      { part: parts.planning, task: tasks.d7.rehearsalPrep },
+    ],
+    'D-1': [
+      { part: parts.design, task: tasks.d1.onSiteSetup },
+      { part: parts.planning, task: tasks.d1.rehearsal },
+    ],
+    'D+7': [
+      { part: parts.planning, task: tasks.d7post.settlement },
+      { part: parts.planning, task: tasks.d7post.report },
+      { part: parts.marketing, task: tasks.d7post.thankYou },
+    ],
+  }
+}
+
+// 사후 관리 카테고리 (다국어 지원)
+const getPostEventCategories = (language: 'en' | 'ko') => {
+  const safeLang = language || 'ko'
+  const T = EVENT_TRANSLATIONS[safeLang].session11
+  const items = T.postEventItems
+  return {
+    [T.teardown]: [
+      items.teardown.rentalReturn,
+      items.teardown.wasteDisposal,
+      items.teardown.facilityCheck,
+      items.teardown.restoration,
+    ],
+    [T.settlement]: [
+      items.settlement.invoice,
+      items.settlement.staffPayment,
+      items.settlement.budgetSummary,
+      items.settlement.contractArchive,
+    ],
+    [T.dataFeedback]: [
+      items.dataFeedback.photoBackup,
+      items.dataFeedback.visitorData,
+      items.dataFeedback.snsMonitoring,
+      items.dataFeedback.dataAnalysis,
+    ],
+  }
 }
 
 interface TaskCard {
@@ -127,6 +144,12 @@ function EventWeek11PageContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const projectId = searchParams.get('projectId') || ''
+  const { language } = useLanguage()
+  const safeLanguage = language || 'ko'
+  const T = EVENT_TRANSLATIONS[safeLanguage]?.session11 || EVENT_TRANSLATIONS['ko'].session11
+  const TASK_PARTS = getTaskParts(safeLanguage)
+  const DEFAULT_TASKS_BY_PHASE = getDefaultTasksByPhase(safeLanguage)
+  const POST_EVENT_CATEGORIES = getPostEventCategories(safeLanguage)
 
   // 권한 검증
   useProjectAccess(projectId)
@@ -155,6 +178,7 @@ function EventWeek11PageContent() {
     unhideProject,
   } = useProjectSettings(projectId)
   const { generateSummary } = useProjectSummary()
+  const { checkAndDeductCredit } = useWorkbookCredit(projectId, 11)
 
   // State
   const [toastVisible, setToastVisible] = useState(false)
@@ -268,22 +292,43 @@ function EventWeek11PageContent() {
     setTimeline(updatedTimeline)
   }, [projectSchedule.dDay, projectSchedule.kickOff, projectSchedule.wrapUp])
 
-  // 사후 관리 체크리스트 초기화
+  // 사후 관리 체크리스트 초기화 (언어 변경 시에도 업데이트)
   useEffect(() => {
+    const categories = getPostEventCategories(safeLanguage)
+    const initialChecklist: PostEventChecklist[] = Object.entries(categories).map(
+      ([category, items]) => ({
+        category,
+        items: items.map((item, idx) => ({
+          id: `${category}-${idx}`,
+          item,
+          completed: false,
+        })),
+      })
+    )
+    // 기존 체크 상태를 유지하면서 텍스트만 업데이트
     if (postEvent.length === 0) {
-      const initialChecklist: PostEventChecklist[] = Object.entries(POST_EVENT_CATEGORIES).map(
-        ([category, items]) => ({
-          category,
-          items: items.map((item, idx) => ({
-            id: `${category}-${idx}`,
-            item,
-            completed: false,
-          })),
-        })
-      )
       setPostEvent(initialChecklist)
+    } else {
+      // 언어가 변경되면 텍스트를 업데이트하되 완료 상태는 유지
+      setPostEvent((prev) => {
+        const updated = initialChecklist.map((newCat, newIdx) => {
+          const prevCat = prev[newIdx]
+          if (prevCat && prevCat.items.length === newCat.items.length) {
+            // 같은 인덱스의 항목들의 완료 상태를 유지
+            return {
+              ...newCat,
+              items: newCat.items.map((newItem, itemIdx) => ({
+                ...newItem,
+                completed: prevCat.items[itemIdx]?.completed || false,
+              })),
+            }
+          }
+          return newCat
+        })
+        return updated
+      })
     }
-  }, [])
+  }, [safeLanguage])
 
   // 총 기간 계산
   const totalPeriod = useMemo(() => {
@@ -474,7 +519,16 @@ function EventWeek11PageContent() {
   // 저장
   const handleSave = async () => {
     if (!projectId) {
-      setToastMessage('프로젝트 ID가 필요합니다.')
+      setToastMessage(language === 'ko' ? '프로젝트 ID가 필요합니다.' : 'Project ID is required.')
+      setToastVisible(true)
+      return
+    }
+
+    // 최초 1회 저장 시 크레딧 차감
+    try {
+      await checkAndDeductCredit()
+    } catch (error: any) {
+      setToastMessage(error.message || '크레딧 차감 중 오류가 발생했습니다.')
       setToastVisible(true)
       return
     }
@@ -510,7 +564,7 @@ function EventWeek11PageContent() {
   // 제출
   const handleSubmit = async () => {
     if (!projectId) {
-      setToastMessage('프로젝트 ID가 필요합니다.')
+      setToastMessage(language === 'ko' ? '프로젝트 ID가 필요합니다.' : 'Project ID is required.')
       setToastVisible(true)
       return
     }
@@ -523,6 +577,17 @@ function EventWeek11PageContent() {
       )
     ) {
       return
+    }
+
+    // 제출 시에도 크레딧 차감 (저장 시 차감 안 했을 경우)
+    if (!isSubmitted) {
+      try {
+        await checkAndDeductCredit()
+      } catch (error: any) {
+        setToastMessage(error.message || '크레딧 차감 중 오류가 발생했습니다.')
+        setToastVisible(true)
+        return
+      }
     }
 
     const eventData: EventWeek11Data = {
@@ -569,16 +634,19 @@ function EventWeek11PageContent() {
     const success = await updateProjectTitle(newProjectTitle)
     if (success) {
       setShowSettings(false)
-      setToastMessage('프로젝트명이 변경되었습니다.')
+      setToastMessage(language === 'ko' ? '프로젝트명이 변경되었습니다.' : 'Project name has been changed.')
       setToastVisible(true)
     } else {
-      setToastMessage('프로젝트명 변경 중 오류가 발생했습니다.')
+      setToastMessage(language === 'ko' ? '프로젝트명 변경 중 오류가 발생했습니다.' : 'Error occurred while changing project name.')
       setToastVisible(true)
     }
   }
 
   const handleDeleteProject = async () => {
-    if (!confirm('정말 이 프로젝트를 삭제하시겠습니까?\n이 작업은 되돌릴 수 없습니다.')) {
+    const confirmMsg = language === 'ko' 
+      ? '정말 이 프로젝트를 삭제하시겠습니까?\n이 작업은 되돌릴 수 없습니다.'
+      : 'Are you sure you want to delete this project?\nThis action cannot be undone.'
+    if (!confirm(confirmMsg)) {
       return
     }
 
@@ -586,7 +654,7 @@ function EventWeek11PageContent() {
     if (success) {
       router.push('/dashboard')
     } else {
-      setToastMessage('프로젝트 삭제 중 오류가 발생했습니다.')
+      setToastMessage(language === 'ko' ? '프로젝트 삭제 중 오류가 발생했습니다.' : 'Error occurred while deleting project.')
       setToastVisible(true)
     }
   }
@@ -594,7 +662,7 @@ function EventWeek11PageContent() {
   // 프로젝트 요약
   const handleProjectSummary = async () => {
     if (!projectId) {
-      setToastMessage('프로젝트 ID가 필요합니다.')
+      setToastMessage(language === 'ko' ? '프로젝트 ID가 필요합니다.' : 'Project ID is required.')
       setToastVisible(true)
       return
     }
@@ -604,7 +672,7 @@ function EventWeek11PageContent() {
       setSummaryPrompt(summary)
       setShowProjectSummary(true)
     } else {
-      setToastMessage('워크북 데이터가 없습니다.')
+      setToastMessage(language === 'ko' ? '워크북 데이터가 없습니다.' : 'No workbook data available.')
       setToastVisible(true)
     }
   }
@@ -612,10 +680,10 @@ function EventWeek11PageContent() {
   const handleCopySummary = async () => {
     try {
       await navigator.clipboard.writeText(summaryPrompt)
-      setToastMessage('프롬프트가 클립보드에 복사되었습니다.')
+      setToastMessage(language === 'ko' ? '프롬프트가 클립보드에 복사되었습니다.' : 'Prompt copied to clipboard.')
       setToastVisible(true)
     } catch (error) {
-      setToastMessage('복사 실패')
+      setToastMessage(language === 'ko' ? '복사 실패' : 'Copy failed')
       setToastVisible(true)
     }
   }
@@ -731,21 +799,10 @@ function EventWeek11PageContent() {
 
   // 이벤트 워크북용 회차 제목
   const getEventWeekTitle = useCallback((week: number): string => {
-    const eventTitles: { [key: number]: string } = {
-      1: 'Phase 1 - 행사 방향성 설정 및 트렌드 헌팅',
-      2: 'Phase 1 - 타겟 페르소나',
-      3: 'Phase 1 - 레퍼런스 벤치마킹 및 정량 분석',
-      4: 'Phase 1 - 행사 개요 및 환경 분석',
-      5: 'Phase 2 - 세계관 및 스토리텔링',
-      6: 'Phase 2 - 방문객 여정 지도',
-      7: 'Phase 2 - 킬러 콘텐츠 및 바이럴 기획',
-      8: 'Phase 2 - 마스터 플랜',
-      9: 'Phase 3 - 행사 브랜딩 기획',
-      10: 'Phase 3 - 공간 연출 기획',
-      11: 'Phase 3 - D-Day 통합 실행 계획',
-      12: 'Phase 3 - 최종 피칭 및 검증',
-    }
-    return eventTitles[week] || `${week}회차`
+    // 사이드바는 항상 영어 (Global Shell)
+    const titles = EVENT_TRANSLATIONS.en.titles
+    const title = titles[week - 1] || `Week ${week}`
+    return title
   }, [])
 
   const getStepStatus = (weekNumber: number) => {
@@ -767,15 +824,15 @@ function EventWeek11PageContent() {
           <div className="flex items-start gap-3">
             <AlertCircle className="w-5 h-5 text-indigo-600 mt-0.5" />
             <div>
-              <h3 className="font-semibold text-gray-900 mb-2">프로젝트 ID 필요</h3>
+              <h3 className="font-semibold text-gray-900 mb-2">{language === 'ko' ? '프로젝트 ID 필요' : 'Project ID Required'}</h3>
               <p className="text-gray-600 text-sm mb-4">
-                프로젝트 ID가 제공되지 않았습니다. 대시보드에서 프로젝트를 선택해주세요.
+                {language === 'ko' ? '프로젝트 ID가 제공되지 않았습니다. 대시보드에서 프로젝트를 선택해주세요.' : 'Project ID was not provided. Please select a project from the dashboard.'}
               </p>
               <button
                 onClick={() => router.push('/dashboard')}
                 className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors text-sm"
               >
-                대시보드로 이동
+                {language === 'ko' ? '대시보드로 이동' : 'Go to Dashboard'}
               </button>
             </div>
           </div>
@@ -793,8 +850,8 @@ function EventWeek11PageContent() {
         type={toastMessage.includes('오류') ? 'error' : 'success'}
       />
       <WorkbookHeader
-        title="Phase 3: Prototype - 11회: D-Day 통합 실행 계획"
-        description="행사 개최를 위한 전체 프로젝트 기간을 설정하고, 시기별 과업과 당일 운영 계획, 사후 관리 항목을 확정합니다."
+        title={getWeekTitle(11)}
+        description={EVENT_TRANSLATIONS[safeLanguage]?.descriptions?.[10] || EVENT_TRANSLATIONS['ko'].descriptions[10]}
         phase="Phase 3: Prototype"
         isScrolled={isScrolled}
         currentWeek={11}
@@ -873,9 +930,9 @@ function EventWeek11PageContent() {
               <div className="flex items-center gap-3 mb-6">
                 <Calendar className="w-6 h-6 text-indigo-600" />
                 <div>
-                  <h2 className="text-xl font-bold text-gray-900">프로젝트 기간 설정</h2>
+                  <h2 className="text-xl font-bold text-gray-900">{T.projectPeriod}</h2>
                   <p className="text-sm text-gray-600 mt-1">
-                    프로젝트 시작일부터 종료일까지의 전체 기간을 설정합니다.
+                    {T.projectPeriodDesc}
                   </p>
                 </div>
               </div>
@@ -883,7 +940,7 @@ function EventWeek11PageContent() {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    준비 시작일 (Kick-off)
+                    {T.kickoffDate}
                   </label>
                   <input
                     type="date"
@@ -897,7 +954,7 @@ function EventWeek11PageContent() {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    행사 당일 (D-Day)
+                    {T.dday}
                   </label>
                   <input
                     type="date"
@@ -908,11 +965,11 @@ function EventWeek11PageContent() {
                     disabled={readonly}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm disabled:bg-gray-100 disabled:cursor-not-allowed"
                   />
-                  <p className="text-xs text-gray-500 mt-1">4회차에서 자동 연동</p>
+                  <p className="text-xs text-gray-500 mt-1">{T.linkToWeek4}</p>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    프로젝트 종료일 (Wrap-up)
+                    {T.wrapupDate}
                   </label>
                   <input
                     type="date"
@@ -930,10 +987,10 @@ function EventWeek11PageContent() {
               {totalPeriod && (
                 <div className="p-4 bg-indigo-50 border border-indigo-200 rounded-lg">
                   <p className="text-sm text-indigo-900">
-                    <strong>총 준비 기간:</strong> {totalPeriod.prep}일
+                    <strong>{language === 'ko' ? '총 준비 기간:' : 'Total Prep Period:'}</strong> {totalPeriod.prep}{T.days}
                     {totalPeriod.total && (
                       <span className="ml-4">
-                        <strong>전체 프로젝트:</strong> {totalPeriod.total}일
+                        <strong>{T.totalPeriod}:</strong> {totalPeriod.total}{T.days}
                       </span>
                     )}
                   </p>
@@ -948,9 +1005,9 @@ function EventWeek11PageContent() {
                   <div className="flex items-center gap-3">
                     <Clock className="w-6 h-6 text-indigo-600" />
                     <div>
-                      <h2 className="text-xl font-bold text-gray-900">D-Day 통합 타임라인</h2>
+                      <h2 className="text-xl font-bold text-gray-900">{T.integratedTimeline}</h2>
                       <p className="text-sm text-gray-600 mt-1">
-                        주요 시점별 과업을 관리합니다.
+                        {T.integratedTimelineDesc}
                       </p>
                     </div>
                   </div>
@@ -968,7 +1025,7 @@ function EventWeek11PageContent() {
                     disabled={readonly}
                     className="px-3 py-1.5 text-sm text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    {allExpanded ? '모두 접기' : '모두 펼치기'}
+                    {allExpanded ? T.collapse : T.expand}
                   </button>
                 </div>
 
@@ -1009,7 +1066,7 @@ function EventWeek11PageContent() {
                             <span className="font-semibold text-gray-900">{phase.phase}</span>
                             {totalCount > 0 && (
                               <span className="text-xs text-gray-500">
-                                ({completedCount}/{totalCount} 완료)
+                                ({completedCount}/{totalCount} {language === 'ko' ? '완료' : 'completed'})
                               </span>
                             )}
                           </div>
@@ -1020,7 +1077,7 @@ function EventWeek11PageContent() {
                           <div className="px-4 pb-4 space-y-4 border-t border-gray-200">
                             {phase.tasks.length === 0 ? (
                               <p className="text-sm text-gray-500 py-4 text-center">
-                                과업이 없습니다. 아래 버튼을 클릭하여 추가하세요.
+                                {language === 'ko' ? '과업이 없습니다. 아래 버튼을 클릭하여 추가하세요.' : 'No tasks. Click the button below to add.'}
                               </p>
                             ) : (
                               phase.tasks.map((task) => (
@@ -1041,7 +1098,7 @@ function EventWeek11PageContent() {
                                     <div className="flex-1 grid grid-cols-1 md:grid-cols-3 gap-4">
                                       <div>
                                         <label className="block text-xs font-medium text-gray-700 mb-1">
-                                          파트 구분
+                                          {T.part}
                                         </label>
                                         <select
                                           value={task.part}
@@ -1060,7 +1117,7 @@ function EventWeek11PageContent() {
                                       </div>
                                       <div>
                                         <label className="block text-xs font-medium text-gray-700 mb-1">
-                                          과업 내용
+                                          {T.task}
                                         </label>
                                         <input
                                           type="text"
@@ -1069,14 +1126,14 @@ function EventWeek11PageContent() {
                                             updateTimelineTask(phase.phase, task.id, 'task', e.target.value)
                                           }
                                           disabled={readonly}
-                                          placeholder="과업 내용 입력"
+                                          placeholder={language === 'ko' ? '과업 내용 입력' : 'Enter task'}
                                           className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm disabled:bg-gray-100 disabled:cursor-not-allowed"
                                         />
                                       </div>
                                       <div className="flex items-end gap-2">
                                         <div className="flex-1">
                                           <label className="block text-xs font-medium text-gray-700 mb-1">
-                                            메모
+                                            {T.memo}
                                           </label>
                                           <input
                                             type="text"
@@ -1085,7 +1142,7 @@ function EventWeek11PageContent() {
                                               updateTimelineTask(phase.phase, task.id, 'memo', e.target.value)
                                             }
                                             disabled={readonly}
-                                            placeholder="담당자/비고"
+                                            placeholder={language === 'ko' ? '담당자/비고' : 'Person in charge/Notes'}
                                             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm disabled:bg-gray-100 disabled:cursor-not-allowed"
                                           />
                                         </div>
@@ -1111,7 +1168,7 @@ function EventWeek11PageContent() {
                               className="w-full px-4 py-2 border-2 border-dashed border-gray-300 rounded-lg hover:border-indigo-500 hover:bg-indigo-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm text-gray-600"
                             >
                               <Plus className="w-4 h-4 inline mr-1" />
-                              과업 추가
+                              {T.addTask}
                             </button>
                           </div>
                         )}
@@ -1127,9 +1184,9 @@ function EventWeek11PageContent() {
               <div className="flex items-center gap-3 mb-6">
                 <Clock className="w-6 h-6 text-indigo-600" />
                 <div>
-                  <h2 className="text-xl font-bold text-gray-900">행사 당일 큐시트</h2>
+                  <h2 className="text-xl font-bold text-gray-900">{T.onSiteCueSheet}</h2>
                   <p className="text-sm text-gray-600 mt-1">
-                    행사 당일의 시간 흐름에 따른 프로그램 진행, 기술, 인력 운영을 상세하게 계획합니다.
+                    {T.onSiteCueSheetDesc}
                   </p>
                 </div>
               </div>
@@ -1138,30 +1195,30 @@ function EventWeek11PageContent() {
                 <table className="w-full border-collapse">
                   <thead>
                     <tr className="bg-gray-50 border-b border-gray-200">
-                      <th className="px-3 py-2 text-left text-xs font-medium text-gray-700">순서</th>
+                      <th className="px-3 py-2 text-left text-xs font-medium text-gray-700">{language === 'ko' ? '순서' : 'Order'}</th>
                       <th className="px-3 py-2 text-left text-xs font-medium text-gray-700">
-                        Time (시간)
+                        {T.time}
                       </th>
                       <th className="px-3 py-2 text-left text-xs font-medium text-gray-700">
-                        Duration (소요)
+                        {T.duration}
                       </th>
                       <th className="px-3 py-2 text-left text-xs font-medium text-gray-700">
-                        Program (내용)
+                        {T.program}
                       </th>
                       <th className="px-3 py-2 text-left text-xs font-medium text-gray-700">
-                        Audio/Visual (기술)
+                        {T.audioVisual}
                       </th>
                       <th className="px-3 py-2 text-left text-xs font-medium text-gray-700">
-                        Staff (운영)
+                        {T.staff}
                       </th>
-                      <th className="px-3 py-2 text-left text-xs font-medium text-gray-700">작업</th>
+                      <th className="px-3 py-2 text-left text-xs font-medium text-gray-700">{language === 'ko' ? '작업' : 'Action'}</th>
                     </tr>
                   </thead>
                   <tbody>
                     {cueSheet.length === 0 ? (
                       <tr>
                         <td colSpan={7} className="px-4 py-8 text-center text-gray-500 text-sm">
-                          큐시트 행을 추가해주세요.
+                          {language === 'ko' ? '큐시트 행을 추가해주세요.' : 'Please add cue sheet rows.'}
                         </td>
                       </tr>
                     ) : (
@@ -1183,7 +1240,7 @@ function EventWeek11PageContent() {
                               value={row.duration}
                               onChange={(e) => updateCueSheetRow(row.id, 'duration', e.target.value)}
                               disabled={readonly}
-                              placeholder="분"
+                              placeholder={language === 'ko' ? '분' : 'min'}
                               className="w-full px-2 py-1 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
                             />
                           </td>
@@ -1193,7 +1250,7 @@ function EventWeek11PageContent() {
                               value={row.program}
                               onChange={(e) => updateCueSheetRow(row.id, 'program', e.target.value)}
                               disabled={readonly}
-                              placeholder="프로그램/내용"
+                              placeholder={language === 'ko' ? '프로그램/내용' : 'Program/Content'}
                               className="w-full px-2 py-1 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
                             />
                           </td>
@@ -1203,7 +1260,7 @@ function EventWeek11PageContent() {
                               value={row.audioVisual}
                               onChange={(e) => updateCueSheetRow(row.id, 'audioVisual', e.target.value)}
                               disabled={readonly}
-                              placeholder="기술 감독용 메모"
+                              placeholder={language === 'ko' ? '기술 감독용 메모' : 'Technical Director Notes'}
                               className="w-full px-2 py-1 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
                             />
                           </td>
@@ -1213,7 +1270,7 @@ function EventWeek11PageContent() {
                               value={row.staff}
                               onChange={(e) => updateCueSheetRow(row.id, 'staff', e.target.value)}
                               disabled={readonly}
-                              placeholder="스태프 R&R"
+                              placeholder={language === 'ko' ? '스태프 R&R' : 'Staff R&R'}
                               className="w-full px-2 py-1 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
                             />
                           </td>
@@ -1224,7 +1281,7 @@ function EventWeek11PageContent() {
                                 onClick={() => moveCueSheetRow(row.id, 'up')}
                                 disabled={readonly || index === 0}
                                 className="text-gray-400 hover:text-gray-600 disabled:opacity-30 disabled:cursor-not-allowed"
-                                title="위로 이동"
+                                title={language === 'ko' ? '위로 이동' : 'Move Up'}
                               >
                                 <ArrowUp className="w-4 h-4" />
                               </button>
@@ -1233,7 +1290,7 @@ function EventWeek11PageContent() {
                                 onClick={() => moveCueSheetRow(row.id, 'down')}
                                 disabled={readonly || index === cueSheet.length - 1}
                                 className="text-gray-400 hover:text-gray-600 disabled:opacity-30 disabled:cursor-not-allowed"
-                                title="아래로 이동"
+                                title={language === 'ko' ? '아래로 이동' : 'Move Down'}
                               >
                                 <ArrowDown className="w-4 h-4" />
                               </button>
@@ -1242,7 +1299,7 @@ function EventWeek11PageContent() {
                                 onClick={() => removeCueSheetRow(row.id)}
                                 disabled={readonly}
                                 className="text-red-500 hover:text-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                                title="삭제"
+                                title={language === 'ko' ? '삭제' : 'Delete'}
                               >
                                 <X className="w-4 h-4" />
                               </button>
@@ -1261,7 +1318,7 @@ function EventWeek11PageContent() {
                   className="mt-4 w-full px-4 py-2 border-2 border-dashed border-gray-300 rounded-lg hover:border-indigo-500 hover:bg-indigo-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm text-gray-600"
                 >
                   <Plus className="w-4 h-4 inline mr-1" />
-                  큐시트 행 추가
+                  {T.addRow}
                 </button>
               </div>
             </div>
@@ -1271,9 +1328,9 @@ function EventWeek11PageContent() {
               <div className="flex items-center gap-3 mb-6">
                 <CheckSquare className="w-6 h-6 text-indigo-600" />
                 <div>
-                  <h2 className="text-xl font-bold text-gray-900">사후 관리 체크리스트</h2>
+                  <h2 className="text-xl font-bold text-gray-900">{T.postEventChecklist}</h2>
                   <p className="text-sm text-gray-600 mt-1">
-                    행사가 끝난 후 수행할 업무를 선택하여 과업에 포함합니다.
+                    {T.postEventChecklistDesc}
                   </p>
                 </div>
               </div>
@@ -1334,7 +1391,7 @@ export default function EventWeek11Page() {
         <div className="min-h-screen bg-gray-50 flex items-center justify-center">
           <div className="text-center">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto mb-4"></div>
-            <p className="text-gray-600">로딩 중...</p>
+            <p className="text-gray-600">로딩 중... / Loading...</p>
           </div>
         </div>
       }

@@ -1,6 +1,7 @@
 'use client'
 
 import { Save, RotateCcw, Send, Undo2, Check } from 'lucide-react'
+import { GLOBAL_UI } from '@/i18n/translations'
 
 interface WorkbookFooterProps {
   progress: number
@@ -49,7 +50,7 @@ export function WorkbookFooter({
           className="btn-secondary disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <RotateCcw className="w-4 h-4" />
-          초기화
+          {GLOBAL_UI.reset}
         </button>
 
         <div className="flex gap-3">
@@ -59,7 +60,7 @@ export function WorkbookFooter({
             className={`btn-primary disabled:opacity-50 disabled:cursor-not-allowed ${buttonClass}`}
           >
             <Save className="w-4 h-4" />
-            {loading ? '저장 중...' : '임시 저장'}
+            {loading ? GLOBAL_UI.saving : GLOBAL_UI.temporarySave}
           </button>
 
           <button
@@ -72,12 +73,12 @@ export function WorkbookFooter({
             {isSubmitted ? (
               <>
                 <Undo2 className="w-4 h-4" />
-                제출 회수
+                Withdraw Submission
               </>
             ) : (
               <>
                 <Send className="w-4 h-4" />
-                제출하기
+                {GLOBAL_UI.submitWorkbook}
               </>
             )}
           </button>
@@ -88,7 +89,7 @@ export function WorkbookFooter({
         <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-xl">
           <p className="text-sm text-blue-800 flex items-center gap-2">
             <Check className="w-4 h-4" />
-            이 워크북은 제출되었습니다. 제출 회수 버튼을 눌러 수정할 수 있습니다.
+            This workbook has been submitted. Click "Withdraw Submission" to edit.
           </p>
         </div>
       )}

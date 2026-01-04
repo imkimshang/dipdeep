@@ -26,18 +26,24 @@ import { ProjectSettingsModal } from '@/components/workbook/ProjectSettingsModal
 import { ProjectSummaryModal } from '@/components/workbook/ProjectSummaryModal'
 import { WorkbookStatusBar } from '@/components/WorkbookStatusBar'
 import { useProjectAccess } from '@/hooks/useProjectAccess'
+import { useWorkbookCredit } from '@/hooks/useWorkbookCredit'
+import { EVENT_TRANSLATIONS } from '@/i18n/translations'
+import { useLanguage } from '@/contexts/LanguageContext'
 
 export const dynamic = 'force-dynamic'
 
-// 예산 대분류
-const BUDGET_CATEGORIES = [
-  '대관료',
-  '제작/설치비',
-  '인건비',
-  '홍보/마케팅비',
-  '운영비',
-  '예비비',
-]
+// 예산 대분류 (다국어 지원)
+const getBudgetCategories = (language: 'en' | 'ko') => {
+  const categories = EVENT_TRANSLATIONS[language]?.session8?.categories || EVENT_TRANSLATIONS['ko'].session8.categories
+  return [
+    categories.venue,
+    categories.production,
+    categories.labor,
+    categories.marketing,
+    categories.operation,
+    categories.contingency,
+  ]
+}
 
 interface ZoneContent {
   zoneName: string // Zone A, B, C 등
@@ -75,6 +81,10 @@ function EventWeek8PageContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const projectId = searchParams.get('projectId') || ''
+  const { language } = useLanguage()
+  const safeLanguage = language || 'ko'
+  const T = EVENT_TRANSLATIONS[safeLanguage]?.session8 || EVENT_TRANSLATIONS['ko'].session8
+  const BUDGET_CATEGORIES = getBudgetCategories(safeLanguage)
 
   // 권한 검증
   useProjectAccess(projectId)
@@ -103,6 +113,7 @@ function EventWeek8PageContent() {
     unhideProject,
   } = useProjectSettings(projectId)
   const { generateSummary } = useProjectSummary()
+  const { checkAndDeductCredit } = useWorkbookCredit(projectId, 8)
 
   // State
   const [toastVisible, setToastVisible] = useState(false)
@@ -156,7 +167,7 @@ function EventWeek8PageContent() {
   // Zone 삭제
   const removeZone = (zoneName: string) => {
     if (zones.length <= 1) {
-      setToastMessage('최소 1개의 구역은 유지해야 합니다.')
+      setToastMessage(T.minOneZone)
       setToastVisible(true)
       return
     }
@@ -245,10 +256,13 @@ function EventWeek8PageContent() {
       .filter((item) => item.amount > 0)
   }, [budgetItems, totalBudget])
 
-  // AI 프롬프트 생성
+  // AI 프롬프트 생성 (언어별)
   const generateAIPrompt = () => {
     const programsList = week7Programs.map((p) => p.name).join(', ')
-    let prompt = `# 역할 부여
+    const isKorean = safeLanguage === 'ko'
+    const categories = T.categories
+    let prompt = isKorean
+      ? `# 역할 부여
 당신은 20년 경력의 행사 운영 총괄 디렉터(General Manager)입니다.
 
 # 행사 개요
@@ -259,10 +273,25 @@ function EventWeek8PageContent() {
 
 # 요청 사항
 위 정보를 바탕으로 가장 효율적인 '예산 비중(%)'과 '공간 조닝 전략'을 제안해주세요.
-1. 예산: 대관료, 제작비, 인건비, 홍보비, 예비비의 이상적인 비율은?
+1. 예산: ${categories.venue}, ${categories.production}, ${categories.labor}, ${categories.marketing}, ${categories.contingency}의 이상적인 비율은?
 2. 공간: 한정된 공간에 위 프로그램들을 어떻게 배치해야 동선이 꼬이지 않을까요? (Zone A/B/C 구분 제안)
 
 **답변은 1000자 이내로, 초보 기획자도 이해하기 쉽게 작성해주세요.**`
+      : `# Role Assignment
+You are a General Manager with 20 years of experience in event operations.
+
+# Event Overview
+- Event Type: ${week4Info.spaceType || '[Week 1 Type]'}
+- Total Budget: ${budgetCap || '[Week 4 Budget]'} 10,000 KRW
+- Space Scale: ${week4Info.spaceArea || '[Week 4 Area]'} pyung
+- Main Programs: ${programsList || '[Week 7 Content List]'}
+
+# Request
+Based on the information above, please suggest the most efficient 'budget allocation (%)' and 'spatial zoning strategy'.
+1. Budget: What is the ideal ratio for ${categories.venue}, ${categories.production}, ${categories.labor}, ${categories.marketing}, ${categories.contingency}?
+2. Space: How should the above programs be arranged in limited space so that flow doesn't get tangled? (Suggest Zone A/B/C divisions)
+
+**Please write your response within 1000 characters, in a way that beginners can easily understand.**`
 
     setAiAdvisor({ ...aiAdvisor, prompt })
     return prompt
@@ -273,10 +302,10 @@ function EventWeek8PageContent() {
     const prompt = generateAIPrompt()
     try {
       await navigator.clipboard.writeText(prompt)
-      setToastMessage('프롬프트가 클립보드에 복사되었습니다.')
+      setToastMessage(T.promptCopySuccess)
       setToastVisible(true)
     } catch (error) {
-      setToastMessage('복사 실패')
+      setToastMessage(T.copyFailed)
       setToastVisible(true)
     }
   }
@@ -357,6 +386,15 @@ function EventWeek8PageContent() {
       return
     }
 
+    // 최초 1회 저장 시 크레딧 차감
+    try {
+      await checkAndDeductCredit()
+    } catch (error: any) {
+      setToastMessage(error.message || '크레딧 차감 중 오류가 발생했습니다.')
+      setToastVisible(true)
+      return
+    }
+
     const eventData: EventWeek8Data = {
       zoning: {
         zones,
@@ -405,6 +443,17 @@ function EventWeek8PageContent() {
       )
     ) {
       return
+    }
+
+    // 제출 시에도 크레딧 차감 (저장 시 차감 안 했을 경우)
+    if (!isSubmitted) {
+      try {
+        await checkAndDeductCredit()
+      } catch (error: any) {
+        setToastMessage(error.message || '크레딧 차감 중 오류가 발생했습니다.')
+        setToastVisible(true)
+        return
+      }
     }
 
     const eventData: EventWeek8Data = {
@@ -630,21 +679,10 @@ function EventWeek8PageContent() {
 
   // 이벤트 워크북용 회차 제목
   const getEventWeekTitle = useCallback((week: number): string => {
-    const eventTitles: { [key: number]: string } = {
-      1: 'Phase 1 - 행사 방향성 설정 및 트렌드 헌팅',
-      2: 'Phase 1 - 타겟 페르소나',
-      3: 'Phase 1 - 레퍼런스 벤치마킹 및 정량 분석',
-      4: 'Phase 1 - 행사 개요 및 환경 분석',
-      5: 'Phase 2 - 세계관 및 스토리텔링',
-      6: 'Phase 2 - 방문객 여정 지도',
-      7: 'Phase 2 - 킬러 콘텐츠 및 바이럴 기획',
-      8: 'Phase 2 - 마스터 플랜',
-      9: 'Phase 3 - 행사 브랜딩',
-      10: 'Phase 3 - 공간 조감도',
-      11: 'Phase 3 - D-Day 통합 실행 계획',
-      12: 'Phase 3 - 최종 피칭 및 검증',
-    }
-    return eventTitles[week] || `${week}회차`
+    // 사이드바는 항상 영어 (Global Shell)
+    const titles = EVENT_TRANSLATIONS.en.titles
+    const title = titles[week - 1] || `Week ${week}`
+    return title
   }, [])
 
   const getStepStatus = (weekNumber: number) => {
@@ -692,8 +730,8 @@ function EventWeek8PageContent() {
         type={toastMessage.includes('오류') ? 'error' : 'success'}
       />
       <WorkbookHeader
-        title="Phase 2: Insight - 8회: 마스터 플랜"
-        description="4회차의 환경 분석과 7회차의 콘텐츠 기획을 통합하여, 구체적인 공간 조닝 계획과 상세 예산안을 수립합니다."
+        title={getWeekTitle(8)}
+        description={EVENT_TRANSLATIONS[safeLanguage]?.descriptions?.[7] || EVENT_TRANSLATIONS['ko'].descriptions[7]}
         phase="Phase 2: Insight"
         isScrolled={isScrolled}
         currentWeek={8}
@@ -773,9 +811,9 @@ function EventWeek8PageContent() {
                 <div className="flex items-center gap-3">
                   <Map className="w-6 h-6 text-indigo-600" />
                   <div>
-                    <h2 className="text-xl font-bold text-gray-900">공간 조닝 맵</h2>
+                    <h2 className="text-xl font-bold text-gray-900">{T.spatialZoning}</h2>
                     <p className="text-sm text-gray-600 mt-1">
-                      행사장 전체 공간을 구역별로 나누고, 7회차에서 기획한 세부 프로그램을 배치하여 공간 구성을 시각화합니다.
+                      {T.spatialZoningDesc}
                     </p>
                   </div>
                 </div>
@@ -786,7 +824,7 @@ function EventWeek8PageContent() {
                   className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm"
                 >
                   <Plus className="w-4 h-4" />
-                  구역 추가
+                  {T.addZone}
                 </button>
               </div>
 
@@ -803,7 +841,7 @@ function EventWeek8PageContent() {
                           value={zone.zoneLabel}
                           onChange={(e) => updateZone(zone.zoneName, 'zoneLabel', e.target.value)}
                           disabled={readonly}
-                          placeholder="구역 이름 (예: 입구, 메인홀, 휴식존)"
+                          placeholder={T.zoneNamePlaceholder}
                           className="px-3 py-1 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
                         />
                       </div>
@@ -823,11 +861,11 @@ function EventWeek8PageContent() {
                       {/* 배치된 프로그램 */}
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">
-                          배치된 프로그램
+                          {T.assignedPrograms}
                         </label>
                         {week7Programs.length === 0 ? (
                           <p className="text-xs text-gray-500 mb-2">
-                            7회차에서 프로그램을 먼저 등록해주세요.
+                            {T.noProgramsYet}
                           </p>
                         ) : (
                           <div className="space-y-2">
@@ -865,14 +903,14 @@ function EventWeek8PageContent() {
                       {/* 구역 메모 */}
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">
-                          구역 메모
+                          {T.zoneNotes}
                         </label>
                         <textarea
                           value={zone.notes}
                           onChange={(e) => updateZone(zone.zoneName, 'notes', e.target.value)}
                           disabled={readonly}
                           rows={4}
-                          placeholder="구역별 연출 의도, 동선 고려사항 등을 메모하세요"
+                          placeholder={T.zoneNotesPlaceholder}
                           className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm resize-none disabled:bg-gray-100 disabled:cursor-not-allowed"
                         />
                       </div>
@@ -885,7 +923,7 @@ function EventWeek8PageContent() {
                 <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
                   <p className="text-xs text-blue-800">
                     <Info className="w-4 h-4 inline mr-1" />
-                    참고: 전체 공간 규모는 {week4Info.spaceArea}평입니다.
+                    {T.referenceSpaceInfo.replace('{area}', week4Info.spaceArea)}
                   </p>
                 </div>
               )}
@@ -896,9 +934,9 @@ function EventWeek8PageContent() {
               <div className="flex items-center gap-3 mb-6">
                 <DollarSign className="w-6 h-6 text-indigo-600" />
                 <div>
-                  <h2 className="text-xl font-bold text-gray-900">상세 예산 계산기</h2>
+                  <h2 className="text-xl font-bold text-gray-900">{T.budgetCalculator}</h2>
                   <p className="text-sm text-gray-600 mt-1">
-                    총 예산 범위 내에서 항목별 비중을 설정하고 견적을 산출합니다.
+                    {T.budgetCalculatorDesc}
                   </p>
                 </div>
               </div>
@@ -908,11 +946,11 @@ function EventWeek8PageContent() {
                 <div className="space-y-6">
                   {/* 예산 대시보드 */}
                   <div className="bg-gradient-to-r from-indigo-50 to-blue-50 border border-indigo-200 rounded-lg p-6">
-                    <h3 className="text-sm font-semibold text-gray-900 mb-4">예산 현황</h3>
+                    <h3 className="text-sm font-semibold text-gray-900 mb-4">{T.budgetStatus}</h3>
                     <div className="space-y-4">
                       <div>
                         <label className="block text-xs font-medium text-gray-600 mb-1">
-                          총 예산 상한선
+                          {T.budgetCap}
                         </label>
                         <div className="flex items-center gap-2">
                           <input
@@ -923,31 +961,31 @@ function EventWeek8PageContent() {
                               setBudgetCap(value ? parseInt(value).toLocaleString() : '')
                             }}
                             disabled={readonly}
-                            placeholder="예: 10000 (만원)"
+                            placeholder={T.budgetCapPlaceholder}
                             className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-lg font-semibold disabled:bg-gray-100 disabled:cursor-not-allowed"
                           />
-                          <span className="text-sm text-gray-600 whitespace-nowrap">만원</span>
+                          <span className="text-sm text-gray-600 whitespace-nowrap">{T.unitWon}</span>
                         </div>
                       </div>
                       <div className="grid grid-cols-2 gap-4">
                         <div>
                           <label className="block text-xs font-medium text-gray-600 mb-1">
-                            현재 합계
+                            {T.totalSum}
                           </label>
                           <p className="text-lg font-semibold text-gray-900">
-                            {totalBudget.toLocaleString()}만원
+                            {totalBudget.toLocaleString()}{T.unitWon}
                           </p>
                         </div>
                         <div>
-                          <label className="block text-xs font-medium text-gray-600 mb-1">잔액</label>
+                          <label className="block text-xs font-medium text-gray-600 mb-1">{T.balance}</label>
                           <p
                             className={`text-lg font-semibold ${
                               isBudgetExceeded ? 'text-red-600' : 'text-green-600'
                             }`}
                           >
-                            {budgetBalance.toLocaleString()}만원
+                            {budgetBalance.toLocaleString()}{T.unitWon}
                             {isBudgetExceeded && (
-                              <span className="ml-2 text-xs">(초과)</span>
+                              <span className="ml-2 text-xs">({T.exceeded})</span>
                             )}
                           </p>
                         </div>
@@ -958,7 +996,7 @@ function EventWeek8PageContent() {
                           <div className="flex items-center gap-2">
                             <AlertTriangle className="w-5 h-5 text-red-600 flex-shrink-0" />
                             <p className="text-sm text-red-800">
-                              예산을 {Math.abs(budgetBalance).toLocaleString()}만원 초과했습니다. 예산을 조정해주세요.
+                              {T.budgetExceeded.replace('{amount}', Math.abs(budgetBalance).toLocaleString())}
                             </p>
                           </div>
                         </div>
@@ -969,13 +1007,13 @@ function EventWeek8PageContent() {
                   {/* 예산 파이 차트 */}
                   {budgetChartData.length > 0 ? (
                     <div className="p-4 bg-white border border-gray-200 rounded-lg">
-                      <h3 className="text-sm font-semibold text-gray-900 mb-4">예산 비중</h3>
+                      <h3 className="text-sm font-semibold text-gray-900 mb-4">{T.budgetDistribution}</h3>
                       <PieChartComponent data={budgetChartData} />
                     </div>
                   ) : (
                     <div className="p-4 bg-gray-50 border border-gray-200 rounded-lg">
                       <p className="text-xs text-gray-500 text-center">
-                        항목을 입력하면 예산 비중 그래프가 표시됩니다.
+                        {T.noBudgetItemsYet}
                       </p>
                     </div>
                   )}
@@ -995,7 +1033,7 @@ function EventWeek8PageContent() {
                         <h3 className="text-sm font-semibold text-gray-900">{category}</h3>
                         <div className="flex items-center gap-4">
                           <span className="text-xs text-gray-600">
-                            소계: {categoryTotal.toLocaleString()}만원
+                            {T.subtotal}: {categoryTotal.toLocaleString()}{T.unitWon}
                           </span>
                           <button
                             type="button"
@@ -1004,14 +1042,14 @@ function EventWeek8PageContent() {
                             className="flex items-center gap-1 px-3 py-1 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-xs"
                           >
                             <Plus className="w-3 h-3" />
-                            항목 추가
+                            {T.addBudgetItem}
                           </button>
                         </div>
                       </div>
 
                       {categoryItems.length === 0 ? (
                         <p className="text-xs text-gray-500 py-4 text-center">
-                          항목을 추가하여 예산을 입력하세요.
+                          {safeLanguage === 'ko' ? '항목을 추가하여 예산을 입력하세요.' : 'Add items to enter budget.'}
                         </p>
                       ) : (
                         <div className="space-y-2">
@@ -1028,7 +1066,7 @@ function EventWeek8PageContent() {
                                     updateBudgetItem(item.id, 'itemName', e.target.value)
                                   }
                                   disabled={readonly}
-                                  placeholder="품목명"
+                                  placeholder={T.itemName}
                                   className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent disabled:bg-white disabled:cursor-not-allowed"
                                 />
                               </div>
@@ -1045,7 +1083,7 @@ function EventWeek8PageContent() {
                                     )
                                   }}
                                   disabled={readonly}
-                                  placeholder="단가 (만원)"
+                                  placeholder={`${T.unitPrice} (${T.unitWon})`}
                                   className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent disabled:bg-white disabled:cursor-not-allowed"
                                 />
                               </div>
@@ -1058,7 +1096,7 @@ function EventWeek8PageContent() {
                                     updateBudgetItem(item.id, 'quantity', value)
                                   }}
                                   disabled={readonly}
-                                  placeholder="수량"
+                                  placeholder={T.quantity}
                                   className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent disabled:bg-white disabled:cursor-not-allowed"
                                 />
                               </div>
@@ -1067,7 +1105,7 @@ function EventWeek8PageContent() {
                                   type="text"
                                   value={item.amount}
                                   disabled
-                                  placeholder="금액 (만원)"
+                                  placeholder={`${safeLanguage === 'ko' ? '금액' : 'Amount'} (${T.unitWon})`}
                                   className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm bg-gray-100 text-gray-700 font-semibold cursor-not-allowed"
                                 />
                               </div>
@@ -1077,7 +1115,7 @@ function EventWeek8PageContent() {
                                   value={item.notes}
                                   onChange={(e) => updateBudgetItem(item.id, 'notes', e.target.value)}
                                   disabled={readonly}
-                                  placeholder="비고"
+                                  placeholder={T.notesPlaceholder}
                                   className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent disabled:bg-white disabled:cursor-not-allowed"
                                 />
                               </div>

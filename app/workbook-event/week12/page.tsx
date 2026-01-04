@@ -26,6 +26,9 @@ import { ProjectSettingsModal } from '@/components/workbook/ProjectSettingsModal
 import { ProjectSummaryModal } from '@/components/workbook/ProjectSummaryModal'
 import { WorkbookStatusBar } from '@/components/WorkbookStatusBar'
 import { useProjectAccess } from '@/hooks/useProjectAccess'
+import { useWorkbookCredit } from '@/hooks/useWorkbookCredit'
+import { EVENT_TRANSLATIONS } from '@/i18n/translations'
+import { useLanguage } from '@/contexts/LanguageContext'
 
 export const dynamic = 'force-dynamic'
 
@@ -57,6 +60,9 @@ function EventWeek12PageContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const projectId = searchParams.get('projectId') || ''
+  const { language } = useLanguage()
+  const safeLanguage = language || 'ko'
+  const T = EVENT_TRANSLATIONS[safeLanguage]?.session12 || EVENT_TRANSLATIONS['ko'].session12
 
   // 권한 검증
   useProjectAccess(projectId)
@@ -85,6 +91,7 @@ function EventWeek12PageContent() {
     unhideProject,
   } = useProjectSettings(projectId)
   const { generateSummary } = useProjectSummary()
+  const { checkAndDeductCredit } = useWorkbookCredit(projectId, 12)
 
   // State
   const [toastVisible, setToastVisible] = useState(false)
@@ -94,7 +101,7 @@ function EventWeek12PageContent() {
   const [newProjectTitle, setNewProjectTitle] = useState('')
   const [showProjectSummary, setShowProjectSummary] = useState(false)
   const [summaryPrompt, setSummaryPrompt] = useState('')
-  const [summaryType, setSummaryType] = useState<SummaryType>('proposal')
+  const [summaryType, setSummaryType] = useState<SummaryType>('business-plan')
 
   // 참고 데이터
   const [week2Personas, setWeek2Personas] = useState<Array<{ name: string; profile: any }>>([])
@@ -228,7 +235,16 @@ function EventWeek12PageContent() {
   // 저장
   const handleSave = async () => {
     if (!projectId) {
-      setToastMessage('프로젝트 ID가 필요합니다.')
+      setToastMessage(safeLanguage === 'ko' ? '프로젝트 ID가 필요합니다.' : 'Project ID is required.')
+      setToastVisible(true)
+      return
+    }
+
+    // 최초 1회 저장 시 크레딧 차감
+    try {
+      await checkAndDeductCredit()
+    } catch (error: any) {
+      setToastMessage(error.message || (safeLanguage === 'ko' ? '크레딧 차감 중 오류가 발생했습니다.' : 'Error occurred while deducting credits.'))
       setToastVisible(true)
       return
     }
@@ -250,12 +266,12 @@ function EventWeek12PageContent() {
         setToastVisible(true)
         loadSteps()
       } else {
-        setToastMessage('저장 중 오류가 발생했습니다.')
+        setToastMessage(safeLanguage === 'ko' ? '저장 중 오류가 발생했습니다.' : 'Error occurred while saving.')
         setToastVisible(true)
       }
     } catch (error: any) {
       console.error('저장 오류:', error)
-      setToastMessage('저장 중 오류가 발생했습니다.')
+      setToastMessage(safeLanguage === 'ko' ? '저장 중 오류가 발생했습니다.' : 'Error occurred while saving.')
       setToastVisible(true)
     }
   }
@@ -263,7 +279,7 @@ function EventWeek12PageContent() {
   // 제출
   const handleSubmit = async () => {
     if (!projectId) {
-      setToastMessage('프로젝트 ID가 필요합니다.')
+      setToastMessage(safeLanguage === 'ko' ? '프로젝트 ID가 필요합니다.' : 'Project ID is required.')
       setToastVisible(true)
       return
     }
@@ -276,6 +292,17 @@ function EventWeek12PageContent() {
       )
     ) {
       return
+    }
+
+    // 제출 시에도 크레딧 차감 (저장 시 차감 안 했을 경우)
+    if (!isSubmitted) {
+      try {
+        await checkAndDeductCredit()
+      } catch (error: any) {
+        setToastMessage(error.message || (safeLanguage === 'ko' ? '크레딧 차감 중 오류가 발생했습니다.' : 'Error occurred while deducting credits.'))
+        setToastVisible(true)
+        return
+      }
     }
 
     const eventData: EventWeek12Data = {
@@ -296,7 +323,7 @@ function EventWeek12PageContent() {
       setToastVisible(true)
       loadSteps()
     } else {
-      setToastMessage('처리 중 오류가 발생했습니다.')
+      setToastMessage(safeLanguage === 'ko' ? '처리 중 오류가 발생했습니다.' : 'Error occurred while processing.')
       setToastVisible(true)
     }
   }
@@ -327,16 +354,19 @@ function EventWeek12PageContent() {
     const success = await updateProjectTitle(newProjectTitle)
     if (success) {
       setShowSettings(false)
-      setToastMessage('프로젝트명이 변경되었습니다.')
+      setToastMessage(safeLanguage === 'ko' ? '프로젝트명이 변경되었습니다.' : 'Project name has been changed.')
       setToastVisible(true)
     } else {
-      setToastMessage('프로젝트명 변경 중 오류가 발생했습니다.')
+      setToastMessage(safeLanguage === 'ko' ? '프로젝트명 변경 중 오류가 발생했습니다.' : 'Error occurred while changing project name.')
       setToastVisible(true)
     }
   }
 
   const handleDeleteProject = async () => {
-    if (!confirm('정말 이 프로젝트를 삭제하시겠습니까?\n이 작업은 되돌릴 수 없습니다.')) {
+    const confirmMsg = safeLanguage === 'ko'
+      ? '정말 이 프로젝트를 삭제하시겠습니까?\n이 작업은 되돌릴 수 없습니다.'
+      : 'Are you sure you want to delete this project?\nThis action cannot be undone.'
+    if (!confirm(confirmMsg)) {
       return
     }
 
@@ -344,7 +374,7 @@ function EventWeek12PageContent() {
     if (success) {
       router.push('/dashboard')
     } else {
-      setToastMessage('프로젝트 삭제 중 오류가 발생했습니다.')
+      setToastMessage(safeLanguage === 'ko' ? '프로젝트 삭제 중 오류가 발생했습니다.' : 'Error occurred while deleting project.')
       setToastVisible(true)
     }
   }
@@ -352,7 +382,7 @@ function EventWeek12PageContent() {
   // 프로젝트 요약
   const handleProjectSummary = async () => {
     if (!projectId) {
-      setToastMessage('프로젝트 ID가 필요합니다.')
+      setToastMessage(safeLanguage === 'ko' ? '프로젝트 ID가 필요합니다.' : 'Project ID is required.')
       setToastVisible(true)
       return
     }
@@ -363,7 +393,7 @@ function EventWeek12PageContent() {
       setSummaryPrompt(summary)
       setShowProjectSummary(true)
     } else {
-      setToastMessage('워크북 데이터가 없습니다.')
+      setToastMessage(safeLanguage === 'ko' ? '워크북 데이터가 없습니다.' : 'No workbook data available.')
       setToastVisible(true)
     }
   }
@@ -387,10 +417,10 @@ function EventWeek12PageContent() {
   const handleCopySummary = async () => {
     try {
       await navigator.clipboard.writeText(summaryPrompt)
-      setToastMessage('프롬프트가 클립보드에 복사되었습니다.')
+      setToastMessage(safeLanguage === 'ko' ? '프롬프트가 클립보드에 복사되었습니다.' : 'Prompt copied to clipboard.')
       setToastVisible(true)
     } catch (error) {
-      setToastMessage('복사 실패')
+      setToastMessage(safeLanguage === 'ko' ? '복사 실패' : 'Copy failed')
       setToastVisible(true)
     }
   }
@@ -530,21 +560,10 @@ function EventWeek12PageContent() {
 
   // 이벤트 워크북용 회차 제목
   const getEventWeekTitle = useCallback((week: number): string => {
-    const eventTitles: { [key: number]: string } = {
-      1: 'Phase 1 - 행사 방향성 설정 및 트렌드 헌팅',
-      2: 'Phase 1 - 타겟 페르소나',
-      3: 'Phase 1 - 레퍼런스 벤치마킹 및 정량 분석',
-      4: 'Phase 1 - 행사 개요 및 환경 분석',
-      5: 'Phase 2 - 세계관 및 스토리텔링',
-      6: 'Phase 2 - 방문객 여정 지도',
-      7: 'Phase 2 - 킬러 콘텐츠 및 바이럴 기획',
-      8: 'Phase 2 - 마스터 플랜',
-      9: 'Phase 3 - 행사 브랜딩 기획',
-      10: 'Phase 3 - 공간 연출 기획',
-      11: 'Phase 3 - D-Day 통합 실행 계획',
-      12: 'Phase 3 - 최종 피칭 및 검증',
-    }
-    return eventTitles[week] || `${week}회차`
+    // 사이드바는 항상 영어 (Global Shell)
+    const titles = EVENT_TRANSLATIONS.en.titles
+    const title = titles[week - 1] || `Week ${week}`
+    return title
   }, [])
 
   const getStepStatus = (weekNumber: number) => {
@@ -576,15 +595,15 @@ function EventWeek12PageContent() {
           <div className="flex items-start gap-3">
             <AlertCircle className="w-5 h-5 text-indigo-600 mt-0.5" />
             <div>
-              <h3 className="font-semibold text-gray-900 mb-2">프로젝트 ID 필요</h3>
+              <h3 className="font-semibold text-gray-900 mb-2">{safeLanguage === 'ko' ? '프로젝트 ID 필요' : 'Project ID Required'}</h3>
               <p className="text-gray-600 text-sm mb-4">
-                프로젝트 ID가 제공되지 않았습니다. 대시보드에서 프로젝트를 선택해주세요.
+                {safeLanguage === 'ko' ? '프로젝트 ID가 제공되지 않았습니다. 대시보드에서 프로젝트를 선택해주세요.' : 'Project ID was not provided. Please select a project from the dashboard.'}
               </p>
               <button
                 onClick={() => router.push('/dashboard')}
                 className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors text-sm"
               >
-                대시보드로 이동
+                {safeLanguage === 'ko' ? '대시보드로 이동' : 'Go to Dashboard'}
               </button>
             </div>
           </div>
@@ -602,8 +621,8 @@ function EventWeek12PageContent() {
         type={toastMessage.includes('오류') ? 'error' : 'success'}
       />
       <WorkbookHeader
-        title="Phase 3: Prototype - 12회: 최종 제안 및 소구 포인트 도출"
-        description="1~11회차의 기획 내용을 바탕으로, 이 행사가 고객에게 어떤 가치를 주는지와 왜 성공할 수밖에 없는지를 정리하여 최종 제안서를 완성합니다."
+        title={getWeekTitle(12)}
+        description={EVENT_TRANSLATIONS[safeLanguage]?.descriptions?.[11] || EVENT_TRANSLATIONS['ko'].descriptions[11]}
         phase="Phase 3: Prototype"
         isScrolled={isScrolled}
         currentWeek={12}
@@ -686,24 +705,24 @@ function EventWeek12PageContent() {
                 <div className="flex items-start gap-3">
                   <div className="flex-shrink-0">
                     <span className="inline-flex items-center px-2.5 py-1 bg-gray-600 text-white text-xs font-medium rounded">
-                      참고
+                      {safeLanguage === 'ko' ? '참고' : 'Reference'}
                     </span>
                   </div>
                   <div className="flex-1">
                     <h3 className="font-semibold text-gray-900 mb-2 flex items-center gap-2">
                       <Info className="w-4 h-4 text-gray-600" />
-                      이전 회차 참고 정보
+                      {safeLanguage === 'ko' ? '이전 회차 참고 정보' : 'Previous Week Reference Information'}
                     </h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
                       {/* 3회차: 경쟁사 약점 */}
                       {week3Data && (
                         <div className="text-sm text-gray-700">
-                          <p className="font-medium mb-1">3회차: 경쟁사 약점</p>
+                          <p className="font-medium mb-1">{safeLanguage === 'ko' ? '3회차: 경쟁사 약점' : 'Week 3: Competitor Weakness'}</p>
                           {week3Data.swot?.weakness && (
                             <p className="text-xs text-gray-600 mb-1">{week3Data.swot.weakness}</p>
                           )}
                           {week3Data.swot?.opportunity && (
-                            <p className="text-xs text-indigo-600">기회: {week3Data.swot.opportunity}</p>
+                            <p className="text-xs text-indigo-600">{safeLanguage === 'ko' ? '기회: ' : 'Opportunity: '}{week3Data.swot.opportunity}</p>
                           )}
                         </div>
                       )}
@@ -711,10 +730,10 @@ function EventWeek12PageContent() {
                       {/* 5회차: 세계관 */}
                       {week5Data && (
                         <div className="text-sm text-gray-700">
-                          <p className="font-medium mb-1">5회차: 세계관</p>
+                          <p className="font-medium mb-1">{safeLanguage === 'ko' ? '5회차: 세계관' : 'Week 5: Universe'}</p>
                           {week5Data.themeKeywords && week5Data.themeKeywords.length > 0 && (
                             <p className="text-xs text-gray-600 mb-1">
-                              키워드: {week5Data.themeKeywords.join(', ')}
+                              {safeLanguage === 'ko' ? '키워드: ' : 'Keywords: '}{week5Data.themeKeywords.join(', ')}
                             </p>
                           )}
                           {week5Data.universe?.concept && (
@@ -726,9 +745,9 @@ function EventWeek12PageContent() {
                       {/* 7회차: 킬러 콘텐츠 */}
                       {week7Data && week7Data.programs && week7Data.programs.length > 0 && (
                         <div className="text-sm text-gray-700">
-                          <p className="font-medium mb-1">7회차: 킬러 콘텐츠</p>
+                          <p className="font-medium mb-1">{safeLanguage === 'ko' ? '7회차: 킬러 콘텐츠' : 'Week 7: Killer Content'}</p>
                           <p className="text-xs text-gray-600 mb-1">
-                            {week7Data.programs.length}개 프로그램
+                            {week7Data.programs.length}{safeLanguage === 'ko' ? '개 프로그램' : ' programs'}
                           </p>
                           {week7Data.programs.slice(0, 2).map((prog: any, idx: number) => (
                             <p key={idx} className="text-xs text-gray-600">
@@ -741,9 +760,9 @@ function EventWeek12PageContent() {
                       {/* 10회차: 공간 연출 */}
                       {week10Zones.length > 0 && (
                         <div className="text-sm text-gray-700">
-                          <p className="font-medium mb-1">10회차: 공간 연출</p>
+                          <p className="font-medium mb-1">{safeLanguage === 'ko' ? '10회차: 공간 연출' : 'Week 10: Space Directing'}</p>
                           <p className="text-xs text-gray-600 mb-1">
-                            {week10Zones.length}개 구역
+                            {week10Zones.length}{safeLanguage === 'ko' ? '개 구역' : ' zones'}
                           </p>
                           {week10Zones.slice(0, 2).map((zone: any, idx: number) => (
                             <p key={idx} className="text-xs text-gray-600">
@@ -763,9 +782,9 @@ function EventWeek12PageContent() {
               <div className="flex items-center gap-3 mb-6">
                 <Target className="w-6 h-6 text-indigo-600" />
                 <div>
-                  <h2 className="text-xl font-bold text-gray-900">핵심 소구 포인트 추출</h2>
+                  <h2 className="text-xl font-bold text-gray-900">{T.keySellingPoints}</h2>
                   <p className="text-sm text-gray-600 mt-1">
-                    우리 행사만의 차별화된 강점(USP) 3가지를 선정하여 강력한 한 방을 만듭니다.
+                    {T.keySellingPointsDesc}
                   </p>
                 </div>
               </div>
@@ -782,28 +801,28 @@ function EventWeek12PageContent() {
                     <div className="space-y-4">
                       <div>
                         <label className="block text-xs font-medium text-gray-700 mb-2">
-                          Keyword
+                          {T.keyword}
                         </label>
                         <input
                           type="text"
                           value={usp.keyword}
                           onChange={(e) => updateUSP(index, 'keyword', e.target.value)}
                           disabled={readonly}
-                          placeholder="예: 국내 최초, 압도적 몰입감"
+                          placeholder={T.keywordPlaceholder}
                           className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm disabled:bg-gray-100 disabled:cursor-not-allowed"
                         />
                       </div>
 
                       <div>
                         <label className="block text-xs font-medium text-gray-700 mb-2">
-                          Description
+                          {T.description}
                         </label>
                         <textarea
                           value={usp.description}
                           onChange={(e) => updateUSP(index, 'description', e.target.value)}
                           disabled={readonly}
+                          placeholder={T.descriptionPlaceholder}
                           rows={4}
-                          placeholder="구체적인 근거와 설명을 입력하세요"
                           className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm resize-none disabled:bg-gray-100 disabled:cursor-not-allowed"
                         />
                       </div>
@@ -818,9 +837,9 @@ function EventWeek12PageContent() {
               <div className="flex items-center gap-3 mb-6">
                 <Award className="w-6 h-6 text-indigo-600" />
                 <div>
-                  <h2 className="text-xl font-bold text-gray-900">타겟별 혜택 정의</h2>
+                  <h2 className="text-xl font-bold text-gray-900">{T.targetBenefit}</h2>
                   <p className="text-sm text-gray-600 mt-1">
-                    방문객이 행사를 통해 얻어갈 수 있는 실질적/정서적 이득을 정의하여 설득 논리를 강화합니다.
+                    {T.targetBenefitDesc}
                   </p>
                 </div>
               </div>
@@ -830,7 +849,7 @@ function EventWeek12PageContent() {
                 <div>
                   <div className="flex items-center justify-between mb-4">
                     <label className="block text-sm font-medium text-gray-700">
-                      Functional Benefit (기능적 혜택)
+                      {T.functional}
                     </label>
                     <button
                       type="button"
@@ -839,13 +858,13 @@ function EventWeek12PageContent() {
                       className="flex items-center gap-1 px-3 py-1 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-xs"
                     >
                       <Plus className="w-3 h-3" />
-                      추가
+                      {T.addBenefit}
                     </button>
                   </div>
                   <div className="space-y-2">
                     {benefits.functional.length === 0 ? (
                       <p className="text-xs text-gray-500 py-4 text-center">
-                        기능적 혜택을 추가해주세요
+                        {safeLanguage === 'ko' ? '기능적 혜택을 추가해주세요' : 'Please add functional benefits'}
                       </p>
                     ) : (
                       benefits.functional.map((benefit, index) => (
@@ -855,7 +874,7 @@ function EventWeek12PageContent() {
                             value={benefit}
                             onChange={(e) => updateFunctionalBenefit(index, e.target.value)}
                             disabled={readonly}
-                            placeholder="예: 한정판 굿즈 득템, 저렴한 구매 기회"
+                            placeholder={T.functionalPlaceholder}
                             className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm disabled:bg-gray-100 disabled:cursor-not-allowed"
                           />
                           <button
@@ -876,7 +895,7 @@ function EventWeek12PageContent() {
                 <div>
                   <div className="flex items-center justify-between mb-4">
                     <label className="block text-sm font-medium text-gray-700">
-                      Emotional Benefit (정서적 혜택)
+                      {T.emotional}
                     </label>
                     <button
                       type="button"
@@ -885,13 +904,13 @@ function EventWeek12PageContent() {
                       className="flex items-center gap-1 px-3 py-1 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-xs"
                     >
                       <Plus className="w-3 h-3" />
-                      추가
+                      {T.addBenefit}
                     </button>
                   </div>
                   <div className="space-y-2">
                     {benefits.emotional.length === 0 ? (
                       <p className="text-xs text-gray-500 py-4 text-center">
-                        정서적 혜택을 추가해주세요
+                        {safeLanguage === 'ko' ? '정서적 혜택을 추가해주세요' : 'Please add emotional benefits'}
                       </p>
                     ) : (
                       benefits.emotional.map((benefit, index) => (
@@ -901,7 +920,7 @@ function EventWeek12PageContent() {
                             value={benefit}
                             onChange={(e) => updateEmotionalBenefit(index, e.target.value)}
                             disabled={readonly}
-                            placeholder="예: 트렌드세터가 된 기분, 해방감, 유대감"
+                            placeholder={T.emotionalPlaceholder}
                             className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm disabled:bg-gray-100 disabled:cursor-not-allowed"
                           />
                           <button
@@ -925,9 +944,9 @@ function EventWeek12PageContent() {
               <div className="flex items-center gap-3 mb-6">
                 <TrendingUp className="w-6 h-6 text-indigo-600" />
                 <div>
-                  <h2 className="text-xl font-bold text-gray-900">성공 시뮬레이션 및 기대 효과</h2>
+                  <h2 className="text-xl font-bold text-gray-900">{T.successSimulation}</h2>
                   <p className="text-sm text-gray-600 mt-1">
-                    이 행사가 계획대로 실행되었을 때 얻을 수 있는 정량적/정성적 성과를 최종적으로 정리합니다.
+                    {safeLanguage === 'ko' ? '이 행사가 계획대로 실행되었을 때 얻을 수 있는 정량적/정성적 성과를 최종적으로 정리합니다.' : 'Finally summarize the quantitative and qualitative achievements that can be obtained when this event is executed as planned.'}
                   </p>
                 </div>
               </div>
@@ -936,27 +955,34 @@ function EventWeek12PageContent() {
                 {/* 4회차 KPI 재확인 */}
                 {week4KPI && (
                   <div className="p-4 bg-indigo-50 border border-indigo-200 rounded-lg">
-                    <p className="text-xs font-semibold text-indigo-900 mb-2">4회차 KPI 목표</p>
+                    <p className="text-xs font-semibold text-indigo-900 mb-2">{safeLanguage === 'ko' ? '4회차 KPI 목표' : 'Week 4 KPI Goals'}</p>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                       {week4KPI.targetVisitors && (
                         <div>
-                          <span className="text-xs text-indigo-700">목표 방문객: </span>
+                          <span className="text-xs text-indigo-700">{safeLanguage === 'ko' ? '목표 방문객: ' : 'Target Visitors: '}</span>
                           <span className="text-sm font-semibold text-indigo-900">
-                            {week4KPI.targetVisitors}명
+                            {week4KPI.targetVisitors}{safeLanguage === 'ko' ? '명' : ''}
                           </span>
                         </div>
                       )}
                       {week4KPI.targetRevenue && (
                         <div>
-                          <span className="text-xs text-indigo-700">목표 매출: </span>
+                          <span className="text-xs text-indigo-700">{safeLanguage === 'ko' ? '목표 매출: ' : 'Target Revenue: '}</span>
                           <span className="text-sm font-semibold text-indigo-900">
-                            {week4KPI.targetRevenue}만원
+                            {safeLanguage === 'ko' 
+                              ? `${week4KPI.targetRevenue}만원`
+                              : (() => {
+                                  // 만원을 원으로 변환 (5000만원 = 50,000,000원)
+                                  const amountInWon = Number(week4KPI.targetRevenue) * 10000
+                                  return `${amountInWon.toLocaleString('en-US')} KRW`
+                                })()
+                            }
                           </span>
                         </div>
                       )}
                       {week4KPI.targetViral && (
                         <div>
-                          <span className="text-xs text-indigo-700">바이럴 목표: </span>
+                          <span className="text-xs text-indigo-700">{safeLanguage === 'ko' ? '바이럴 목표: ' : 'Viral Goal: '}</span>
                           <span className="text-sm font-semibold text-indigo-900">
                             {week4KPI.targetViral}
                           </span>
@@ -971,10 +997,10 @@ function EventWeek12PageContent() {
                   {/* Goal 달성 시나리오 */}
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Goal 달성 시나리오
+                      {T.goalAchievement}
                     </label>
                     <p className="text-xs text-gray-500 mb-2">
-                      4회차 KPI 목표를 달성하기 위한 구체적인 시나리오와 마케팅 플랜의 효과를 설명하세요.
+                      {safeLanguage === 'ko' ? '4회차 KPI 목표를 달성하기 위한 구체적인 시나리오와 마케팅 플랜의 효과를 설명하세요.' : 'Describe the specific scenario and effectiveness of the marketing plan to achieve Week 4 KPI goals.'}
                     </p>
                     <textarea
                       value={successMetrics.goalScenario}
@@ -983,7 +1009,7 @@ function EventWeek12PageContent() {
                       }
                       disabled={readonly}
                       rows={6}
-                      placeholder="마케팅 플랜(11회차)이 작동했을 때 달성 가능한 수치인지 재확인 및 확정"
+                      placeholder={T.goalAchievementPlaceholder}
                       className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm resize-none disabled:bg-gray-100 disabled:cursor-not-allowed"
                     />
                   </div>
@@ -991,10 +1017,10 @@ function EventWeek12PageContent() {
                   {/* 파급 효과 */}
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      파급 효과 (Ripple Effect)
+                      {T.rippleEffect}
                     </label>
                     <p className="text-xs text-gray-500 mb-2">
-                      행사가 끝난 후 브랜드나 지역 사회에 남게 될 장기적인 가치를 기술하세요.
+                      {safeLanguage === 'ko' ? '행사가 끝난 후 브랜드나 지역 사회에 남게 될 장기적인 가치를 기술하세요.' : 'Describe the long-term value that will remain for the brand or local community after the event ends.'}
                     </p>
                     <textarea
                       value={successMetrics.rippleEffect}
@@ -1003,7 +1029,7 @@ function EventWeek12PageContent() {
                       }
                       disabled={readonly}
                       rows={6}
-                      placeholder="행사가 끝난 후 브랜드나 지역 사회에 남게 될 장기적인 가치 기술"
+                      placeholder={T.rippleEffectPlaceholder}
                       className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm resize-none disabled:bg-gray-100 disabled:cursor-not-allowed"
                     />
                   </div>
@@ -1012,10 +1038,10 @@ function EventWeek12PageContent() {
                 {/* Last Pitching - 컬러 강조 */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Last Pitching (최종 설득)
+                    {T.lastPitching}
                   </label>
                   <p className="text-xs text-gray-500 mb-2">
-                    투자자나 의사결정권자에게 던지는 마지막 한 문장을 작성하세요.
+                    {safeLanguage === 'ko' ? '투자자나 의사결정권자에게 던지는 마지막 한 문장을 작성하세요.' : 'Write the final sentence you will deliver to investors or decision makers.'}
                   </p>
                   <textarea
                     value={successMetrics.lastPitching}
@@ -1024,7 +1050,7 @@ function EventWeek12PageContent() {
                     }
                     disabled={readonly}
                     rows={3}
-                    placeholder="투자자나 의사결정권자에게 던지는 마지막 한 문장"
+                    placeholder={T.lastPitchingPlaceholder}
                     className="w-full px-4 py-3 border-2 border-indigo-400 bg-indigo-50 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-600 text-sm resize-none disabled:bg-gray-100 disabled:cursor-not-allowed font-medium"
                   />
                 </div>
@@ -1038,9 +1064,9 @@ function EventWeek12PageContent() {
                   <Award className="w-12 h-12 text-white" />
                   <div className="text-center">
                     <p className="text-xl font-bold text-white mb-1">
-                      당신의 기획은 세상을 설레게 할 준비가 되었습니다
+                      {T.completionMessage}
                     </p>
-                    <p className="text-indigo-100 text-sm">12회차 워크북 완료</p>
+                    <p className="text-indigo-100 text-sm">{safeLanguage === 'ko' ? '12회차 워크북 완료' : 'Week 12 Workbook Completed'}</p>
                   </div>
                 </div>
               </div>
@@ -1074,7 +1100,7 @@ export default function EventWeek12Page() {
         <div className="min-h-screen bg-gray-50 flex items-center justify-center">
           <div className="text-center">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto mb-4"></div>
-            <p className="text-gray-600">로딩 중...</p>
+            <p className="text-gray-600">로딩 중... / Loading...</p>
           </div>
         </div>
       }
