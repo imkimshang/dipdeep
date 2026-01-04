@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { createClient } from '@/utils/supabase/client'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { ArrowLeft, Save, X, Users, User } from 'lucide-react'
+import { ArrowLeft, Save, X, Users, User, Globe, Calendar, Package } from 'lucide-react'
 
 export default function NewProjectPage() {
   const router = useRouter()
@@ -154,24 +154,43 @@ export default function NewProjectPage() {
             </div>
 
             <div>
-              <label
-                htmlFor="type"
-                className="block text-sm font-medium text-gray-700 mb-3"
-              >
+              <label className="block text-sm font-medium text-gray-700 mb-3">
                 프로젝트 유형 *
               </label>
-              <select
-                id="type"
-                value={formData.type}
-                onChange={(e) =>
-                  setFormData({ ...formData, type: e.target.value })
-                }
-                className="input-field"
-              >
-                <option value="webapp">웹 애플리케이션</option>
-                <option value="event">행사/이벤트</option>
-                <option value="product">제품</option>
-              </select>
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => setFormData({ ...formData, type: 'webapp' })}
+                  className={`flex-1 flex flex-col items-center justify-center gap-2 px-4 py-3 rounded-lg border-2 transition-colors ${
+                    formData.type === 'webapp'
+                      ? 'border-indigo-500 bg-indigo-50 text-indigo-700'
+                      : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300'
+                  }`}
+                >
+                  <Globe className="w-4 h-4" />
+                  <span>웹 애플리케이션</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFormData({ ...formData, type: 'event' })}
+                  className={`flex-1 flex flex-col items-center justify-center gap-2 px-4 py-3 rounded-lg border-2 transition-colors ${
+                    formData.type === 'event'
+                      ? 'border-indigo-500 bg-indigo-50 text-indigo-700'
+                      : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300'
+                  }`}
+                >
+                  <Calendar className="w-4 h-4" />
+                  <span>행사/이벤트</span>
+                </button>
+                <button
+                  type="button"
+                  disabled
+                  className="flex-1 flex flex-col items-center justify-center gap-2 px-4 py-3 rounded-lg border-2 bg-gray-50 text-gray-400 cursor-not-allowed opacity-60"
+                >
+                  <Package className="w-4 h-4" />
+                  <span>제품</span>
+                </button>
+              </div>
             </div>
 
             {/* 프로젝트 유형 선택 (개인/팀) */}

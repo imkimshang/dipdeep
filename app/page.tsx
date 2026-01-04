@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { ArrowRight, Sparkles, Target, BarChart3, Zap, TrendingUp, Rocket, FileText } from 'lucide-react'
+import { ArrowRight, Sparkles, Target, BarChart3, Zap, TrendingUp, Rocket, FileText, Globe, Calendar, Bot, Users, CheckCircle2, Presentation, Package } from 'lucide-react'
 import { InteractiveHeroBackground } from '@/components/InteractiveHeroBackground'
 
 export default function Home() {
@@ -13,8 +13,6 @@ export default function Home() {
           <div className="max-w-5xl mx-auto text-center">
             {/* Main Title */}
             <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl xl:text-7xl font-bold text-slate-900 mb-4 sm:mb-5 md:mb-6 tracking-tight leading-tight sm:leading-tight">
-              기획의 본질은 논리입니다.
-              <br className="hidden sm:block" />
               <span className="block sm:inline">
                 <span className="bg-gradient-to-r from-indigo-600 to-blue-600 bg-clip-text text-transparent">
                   AI로 당신의 기획력을
@@ -29,9 +27,26 @@ export default function Home() {
             </h1>
 
             {/* Subtitle */}
-            <p className="text-base sm:text-lg md:text-xl text-slate-600 mb-8 sm:mb-10 md:mb-12 max-w-3xl mx-auto leading-relaxed font-light px-4 sm:px-0">
-              AI와 데이터를 활용해 아이디어의 파편을 단단한 논리 구조로 전환하는 3단계 기술
+            <p className="text-base sm:text-lg md:text-xl text-slate-600 mb-6 sm:mb-8 max-w-3xl mx-auto leading-relaxed font-light px-4 sm:px-0">
+              AI와 데이터를 활용해 아이디어의 파편을 단단한 논리 구조로 전환하는 3단계 프로세스
             </p>
+            
+            {/* Project Types */}
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-4 sm:gap-6 mb-8 sm:mb-10 md:mb-12 px-4 sm:px-0">
+              <div className="flex items-center gap-2 px-4 py-2 bg-indigo-50 rounded-full border border-indigo-200">
+                <Globe className="w-4 h-4 text-indigo-600" />
+                <span className="text-sm font-medium text-indigo-900">웹/앱 기획 워크북</span>
+              </div>
+              <div className="flex items-center gap-2 px-4 py-2 bg-blue-50 rounded-full border border-blue-200">
+                <Calendar className="w-4 h-4 text-blue-600" />
+                <span className="text-sm font-medium text-blue-900">행사/이벤트 워크북</span>
+              </div>
+              <div className="flex items-center gap-2 px-4 py-2 bg-purple-50 rounded-full border border-purple-200 opacity-60">
+                <Package className="w-4 h-4 text-purple-600" />
+                <span className="text-sm font-medium text-purple-900">상품기획 워크북</span>
+                <span className="text-xs text-purple-600 font-medium ml-1">(준비 중)</span>
+              </div>
+            </div>
 
             {/* CTA Buttons */}
             <div className="flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-4 mb-12 sm:mb-16 md:mb-20 px-4 sm:px-0">
@@ -51,7 +66,7 @@ export default function Home() {
             </div>
 
             {/* Stats */}
-            <div className="grid grid-cols-3 gap-4 sm:gap-6 md:gap-8 max-w-2xl mx-auto px-4 sm:px-0">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 sm:gap-6 md:gap-8 max-w-3xl mx-auto px-4 sm:px-0">
               <div>
                 <div className="text-2xl sm:text-3xl md:text-4xl font-bold text-slate-900 mb-1 sm:mb-2">12회</div>
                 <div className="text-xs sm:text-sm text-slate-600 font-medium">논리 고도화</div>
@@ -61,72 +76,74 @@ export default function Home() {
                 <div className="text-xs sm:text-sm text-slate-600 font-medium leading-tight">Data → Insight<br className="hidden sm:block" /> → Prototype</div>
               </div>
               <div>
-                <div className="text-2xl sm:text-3xl md:text-4xl font-bold text-slate-900 mb-1 sm:mb-2">12개</div>
-                <div className="text-xs sm:text-sm text-slate-600 font-medium">전략적 무기(Output)</div>
+                <div className="text-2xl sm:text-3xl md:text-4xl font-bold text-slate-900 mb-1 sm:mb-2">3종류</div>
+                <div className="text-xs sm:text-sm text-slate-600 font-medium">워크북 타입</div>
+              </div>
+              <div>
+                <div className="text-2xl sm:text-3xl md:text-4xl font-bold text-slate-900 mb-1 sm:mb-2">AI</div>
+                <div className="text-xs sm:text-sm text-slate-600 font-medium">자동 문서 생성</div>
               </div>
             </div>
           </div>
         </div>
       </section>
 
-      {/* Core Values Section */}
+      {/* Key Features Section */}
       <section className="py-12 sm:py-16 md:py-20 bg-white border-t border-slate-100">
         <div className="container mx-auto px-4 sm:px-6 lg:px-8">
           <div className="max-w-6xl mx-auto">
             {/* Section Header */}
             <div className="text-center mb-10 sm:mb-12 md:mb-16">
               <h2 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold text-slate-900 mb-3 sm:mb-4 tracking-tight leading-tight">
-                기획 전문가를 위한<br className="hidden sm:block" />3가지 핵심 레버리지
+                단계별로 완성되는<br className="hidden sm:block" />실무 활용 가능한 결과물
               </h2>
               <p className="text-sm sm:text-base md:text-lg text-slate-600 max-w-2xl mx-auto mt-3 sm:mt-4 px-4 sm:px-0">
-                기획자의 잠재력을 AI로 레버리지하여 설득력과 실행력을 동시에 확보합니다
+                각 워크북을 완성하면 AI가 자동으로 전문적인 사업기획서와 제안서를 생성합니다
               </p>
             </div>
 
-            {/* Core Values Grid */}
-            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8">
-              {/* Value 1: Strategic AI-Leap */}
+            {/* Features Grid */}
+            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8 mb-12 sm:mb-16">
               <div className="card card-hover p-6 sm:p-8 border border-slate-200">
                 <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-gradient-to-br from-indigo-600 to-blue-700 flex items-center justify-center mb-4 sm:mb-6 shadow-lg shadow-indigo-500/20">
-                  <Zap className="w-6 h-6 sm:w-7 sm:h-7 text-white" />
+                  <FileText className="w-6 h-6 sm:w-7 sm:h-7 text-white" />
                 </div>
                 <h3 className="text-xl sm:text-2xl font-bold text-slate-900 mb-2 sm:mb-3 tracking-tight">
-                  Strategic AI-Leap
+                  AI 사업기획서 생성
                 </h3>
                 <p className="text-sm sm:text-base text-slate-600 leading-relaxed">
-                  AI를 가장 영리하게 활용해 기획의 생산성과 깊이를 동시에 확보하는 프로세스. 단순 도구가 아닌 전략적 파트너로 AI를 다루어 기획의 밀도를 높입니다.
+                  워크북 데이터를 바탕으로 AI가 자동으로 전문적인 사업기획서(Word 문서) 양식을 생성합니다. 즉시 활용 가능한 완성형 문서를 받아보세요.
                 </p>
               </div>
 
-              {/* Value 2: Data-Backed Logic */}
               <div className="card card-hover p-6 sm:p-8 border border-slate-200">
                 <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-700 flex items-center justify-center mb-4 sm:mb-6 shadow-lg shadow-blue-500/20">
-                  <BarChart3 className="w-6 h-6 sm:w-7 sm:h-7 text-white" />
+                  <Presentation className="w-6 h-6 sm:w-7 sm:h-7 text-white" />
                 </div>
                 <h3 className="text-xl sm:text-2xl font-bold text-slate-900 mb-2 sm:mb-3 tracking-tight">
-                  Data-Backed Logic
+                  AI 제안서 슬라이드
                 </h3>
                 <p className="text-sm sm:text-base text-slate-600 leading-relaxed">
-                  막연한 주장이 아닌, 공공데이터와 팩트체크로 무장하여 반박 불가능한 논리 구축. 감이 아닌 데이터로, 추측이 아닌 사실로 설득력을 확보합니다.
+                  의사결정권자에게 제시할 수 있는 프로페셔널한 제안서 프롬프트를 자동 생성합니다. 설득력 있는 프레젠테이션 자료를 빠르게 준비하세요.
                 </p>
               </div>
 
-              {/* Value 3: High-Impact Persuasion */}
               <div className="card card-hover p-6 sm:p-8 border border-slate-200 sm:col-span-2 lg:col-span-1">
                 <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-gradient-to-br from-indigo-600 to-purple-700 flex items-center justify-center mb-4 sm:mb-6 shadow-lg shadow-indigo-500/20">
-                  <Target className="w-6 h-6 sm:w-7 sm:h-7 text-white" />
+                  <Bot className="w-6 h-6 sm:w-7 sm:h-7 text-white" />
                 </div>
                 <h3 className="text-xl sm:text-2xl font-bold text-slate-900 mb-2 sm:mb-3 tracking-tight">
-                  High-Impact Persuasion
+                  클라우드 워크스페이스
                 </h3>
                 <p className="text-sm sm:text-base text-slate-600 leading-relaxed">
-                  시각화와 로지컬 라이팅으로 완성되는, 의사결정권자를 움직이는 압도적인 설득력. 논리적 근거와 명확한 시각화로 설득의 수준을 한 단계 높입니다.
+                  모든 입력 내용이 안전하게 저장됩니다. 개인 프로젝트부터 팀 프로젝트까지, 어디서나 접근 가능한 클라우드 기반 워크스페이스에서 언제든지 이어서 작업할 수 있습니다.
                 </p>
               </div>
             </div>
           </div>
         </div>
       </section>
+
 
       {/* The Journey Section */}
       <section className="py-12 sm:py-16 md:py-20 bg-gradient-to-b from-white to-slate-50">
@@ -137,8 +154,7 @@ export default function Home() {
                 12번의 논리 고도화
               </h2>
               <p className="text-sm sm:text-base md:text-lg text-slate-600 max-w-2xl mx-auto px-4 sm:px-0 leading-relaxed">
-                Data → Insight → Prototype으로 이어지는 3단계 Phase.<br className="hidden sm:block" />
-                매 회차가 끝날 때마다 기획자가 즉시 실무에 활용할 수 있는 <span className="font-semibold">전략적 무기(Output)</span>가 하나씩 완성됩니다.
+                Data → Insight → Prototype으로 이어지는 3단계 Phase.
               </p>
             </div>
 
@@ -225,6 +241,77 @@ export default function Home() {
         </div>
       </section>
 
+      {/* Why Choose Section */}
+      <section className="py-12 sm:py-16 md:py-20 bg-white border-t border-slate-100">
+        <div className="container mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="max-w-5xl mx-auto">
+            <div className="text-center mb-10 sm:mb-12 md:mb-16">
+              <h2 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold text-slate-900 mb-3 sm:mb-4 tracking-tight">
+                왜 D.I.P Deep인가?
+              </h2>
+            </div>
+
+            <div className="grid sm:grid-cols-2 gap-6 sm:gap-8">
+              <div className="flex gap-4">
+                <div className="flex-shrink-0">
+                  <div className="w-10 h-10 rounded-xl bg-indigo-100 flex items-center justify-center">
+                    <CheckCircle2 className="w-6 h-6 text-indigo-600" />
+                  </div>
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-slate-900 mb-2">개인 & 팀 프로젝트 지원</h3>
+                  <p className="text-sm text-slate-600 leading-relaxed">
+                    혼자 작업하거나 팀과 협업할 수 있습니다. 팀 코드로 쉽게 공유하고 함께 진행하세요.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex gap-4">
+                <div className="flex-shrink-0">
+                  <div className="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center">
+                    <CheckCircle2 className="w-6 h-6 text-blue-600" />
+                  </div>
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-slate-900 mb-2">안전한 데이터 저장</h3>
+                  <p className="text-sm text-slate-600 leading-relaxed">
+                    입력한 모든 내용이 안전하게 저장됩니다. 언제든지 이어서 작업할 수 있는 클라우드 기반 워크스페이스입니다.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex gap-4">
+                <div className="flex-shrink-0">
+                  <div className="w-10 h-10 rounded-xl bg-purple-100 flex items-center justify-center">
+                    <CheckCircle2 className="w-6 h-6 text-purple-600" />
+                  </div>
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-slate-900 mb-2">데이터 기반 논리 구축</h3>
+                  <p className="text-sm text-slate-600 leading-relaxed">
+                    공공데이터와 팩트체크로 무장한 반박 불가능한 논리를 만듭니다. 감이 아닌 데이터로 설득하세요.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex gap-4">
+                <div className="flex-shrink-0">
+                  <div className="w-10 h-10 rounded-xl bg-indigo-100 flex items-center justify-center">
+                    <CheckCircle2 className="w-6 h-6 text-indigo-600" />
+                  </div>
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-slate-900 mb-2">즉시 활용 가능한 결과물</h3>
+                  <p className="text-sm text-slate-600 leading-relaxed">
+                    매 회차마다 실무에 바로 쓸 수 있는 전략적 무기가 완성됩니다. 시간 낭비 없이 결과에 집중하세요.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* CTA Section */}
       <section className="py-12 sm:py-16 md:py-20 bg-gradient-to-br from-indigo-900 via-blue-900 to-slate-900">
         <div className="container mx-auto px-4 sm:px-6 lg:px-8">
@@ -237,13 +324,22 @@ export default function Home() {
               상상은 자유롭게, 논리는 빈틈없이.<br className="hidden sm:block" />
               기획자를 위한 실전 워크스페이스가 당신을 기다립니다.
             </p>
-            <Link
-              href="/login"
-              className="inline-flex items-center gap-2 px-6 sm:px-8 py-3 sm:py-4 bg-white text-indigo-900 rounded-full font-semibold text-base sm:text-lg hover:bg-gray-100 active:scale-95 transition-all duration-200 shadow-xl shadow-black/20 mx-4 sm:mx-0"
-            >
-              12회 빌드업 시작하기
-              <ArrowRight className="w-4 h-4 sm:w-5 sm:h-5" />
-            </Link>
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-4">
+              <Link
+                href="/login"
+                className="inline-flex items-center gap-2 px-6 sm:px-8 py-3 sm:py-4 bg-white text-indigo-900 rounded-full font-semibold text-base sm:text-lg hover:bg-gray-100 active:scale-95 transition-all duration-200 shadow-xl shadow-black/20 w-full sm:w-auto justify-center"
+              >
+                프로젝트 시작하기
+                <ArrowRight className="w-4 h-4 sm:w-5 sm:h-5" />
+              </Link>
+              <Link
+                href="/login?mode=signup"
+                className="inline-flex items-center gap-2 px-6 sm:px-8 py-3 sm:py-4 bg-indigo-800/50 text-white rounded-full font-semibold text-base sm:text-lg hover:bg-indigo-800/70 active:scale-95 transition-all duration-200 border border-indigo-700/50 w-full sm:w-auto justify-center"
+              >
+                무료 회원가입
+                <Users className="w-4 h-4 sm:w-5 sm:h-5" />
+              </Link>
+            </div>
           </div>
         </div>
       </section>

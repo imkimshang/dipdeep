@@ -46,7 +46,14 @@ body {
   }
   
   .input-field {
-    @apply w-full px-4 py-3.5 bg-white/50 backdrop-blur-sm border border-gray-200 rounded-xl focus:ring-2 focus:ring-black/10 focus:border-gray-400 transition-all duration-200 text-sm placeholder:text-gray-400;
+    @apply w-full px-4 py-3.5 bg-white/50 backdrop-blur-sm border border-gray-200 rounded-xl focus:ring-2 focus:ring-black/10 focus:border-gray-400 transition-all duration-200 text-sm text-gray-900 placeholder:text-gray-400;
+  }
+  
+  /* 다크모드 대응 */
+  @media (prefers-color-scheme: dark) {
+    .input-field {
+      @apply bg-white/90 text-gray-900 border-gray-300;
+    }
   }
 }
 

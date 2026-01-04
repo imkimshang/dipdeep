@@ -98,6 +98,8 @@ function LoginForm() {
 
         if (error) {
           console.error("가입 에러:", error)
+          console.error("에러 코드:", error.status)
+          console.error("에러 상세:", JSON.stringify(error, null, 2))
           
           // Rate limit 오류 처리
           if (error.message?.includes('seconds') || error.message?.includes('rate limit')) {
@@ -109,6 +111,24 @@ function LoginForm() {
               `잠시 기다렸다가 (약 ${waitTime}초 후) 다시 회원가입을 시도해주세요.`
             )
             setError(`잠시 후 다시 시도해주세요. (약 ${waitTime}초 대기 필요)`)
+            throw error
+          }
+          
+          // 데이터베이스 오류 처리 (트리거/함수 관련)
+          if (error.message?.includes('Database error') || error.message?.includes('saving new user')) {
+            console.error('데이터베이스 트리거/함수 오류 의심')
+            alert(
+              "회원가입 중 데이터베이스 오류가 발생했습니다.\n\n" +
+              "가능한 원인:\n" +
+              "1. 프로필 생성 트리거 오류\n" +
+              "2. 환영 크레딧 지급 함수 오류\n\n" +
+              "Supabase SQL Editor에서 다음을 확인해주세요:\n" +
+              "- profiles 테이블 트리거 상태\n" +
+              "- give_welcome_credits 함수 문법\n" +
+              "- RLS 정책 설정\n\n" +
+              "에러 상세: " + (error.message || '알 수 없는 오류')
+            )
+            setError("데이터베이스 오류: " + error.message)
             throw error
           }
           
@@ -198,7 +218,7 @@ function LoginForm() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-50 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 flex items-center justify-center p-4">
       <div className="max-w-md w-full glass rounded-3xl shadow-2xl shadow-black/5 p-10">
         <Link
           href="/"
@@ -209,10 +229,10 @@ function LoginForm() {
         </Link>
 
         <div className="mb-8">
-          <h1 className="text-4xl font-bold text-gray-900 mb-2 tracking-tight">
+          <h1 className="text-4xl font-bold text-gray-900 dark:text-white mb-2 tracking-tight">
             {isLogin ? '로그인' : '회원가입'}
           </h1>
-          <p className="text-gray-500 text-base">
+          <p className="text-gray-500 dark:text-gray-400 text-base">
             {isLogin
               ? 'Dip Deep에 오신 것을 환영합니다'
               : '새로운 계정을 만들어보세요'}
@@ -223,7 +243,7 @@ function LoginForm() {
           <div>
             <label
               htmlFor="email"
-              className="block text-sm font-medium text-gray-700 mb-2.5"
+              className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2.5"
             >
               이메일
             </label>
@@ -244,7 +264,7 @@ function LoginForm() {
           <div>
             <label
               htmlFor="password"
-              className="block text-sm font-medium text-gray-700 mb-2.5"
+              className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2.5"
             >
               비밀번호
             </label>
@@ -268,7 +288,7 @@ function LoginForm() {
               <div>
                 <label
                   htmlFor="fullName"
-                  className="block text-sm font-medium text-gray-700 mb-2.5"
+                  className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2.5"
                 >
                   이름
                 </label>
@@ -286,7 +306,7 @@ function LoginForm() {
               <div>
                 <label
                   htmlFor="phone"
-                  className="block text-sm font-medium text-gray-700 mb-2.5"
+                  className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2.5"
                 >
                   전화번호
                 </label>
@@ -304,7 +324,7 @@ function LoginForm() {
               <div>
                 <label
                   htmlFor="experience"
-                  className="block text-sm font-medium text-gray-700 mb-2.5"
+                  className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2.5"
                 >
                   경력
                 </label>
