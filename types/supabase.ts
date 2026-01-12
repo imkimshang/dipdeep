@@ -15,18 +15,51 @@ export interface Database {
           role: 'teacher' | 'student' | null
           username: string | null
           organization: string | null
+          email: string | null
+          full_name: string | null
+          phone_number: string | null
+          interest_fields: string[] | null
+          status: 'active' | 'archived' | null
+          credit_balance: number | null
+          user_no: number | null
+          deleted_at: string | null
+          withdrawn_at: string | null
+          created_at: string | null
+          updated_at: string | null
         }
         Insert: {
           id: string
           role?: 'teacher' | 'student' | null
           username?: string | null
           organization?: string | null
+          email?: string | null
+          full_name?: string | null
+          phone_number?: string | null
+          interest_fields?: string[] | null
+          status?: 'active' | 'archived' | null
+          credit_balance?: number | null
+          user_no?: number | null
+          deleted_at?: string | null
+          withdrawn_at?: string | null
+          created_at?: string | null
+          updated_at?: string | null
         }
         Update: {
           id?: string
           role?: 'teacher' | 'student' | null
           username?: string | null
           organization?: string | null
+          email?: string | null
+          full_name?: string | null
+          phone_number?: string | null
+          interest_fields?: string[] | null
+          status?: 'active' | 'archived' | null
+          credit_balance?: number | null
+          user_no?: number | null
+          deleted_at?: string | null
+          withdrawn_at?: string | null
+          created_at?: string | null
+          updated_at?: string | null
         }
       }
       teams: {
@@ -58,6 +91,13 @@ export interface Database {
           type: string | null
           progress_rate: number | null
           current_step: number | null
+          is_team: boolean | null
+          team_code: string | null
+          member_emails: string[] | null
+          is_hidden: boolean | null
+          last_editor_id: string | null
+          created_at: string | null
+          updated_at: string | null
         }
         Insert: {
           id?: string
@@ -67,6 +107,13 @@ export interface Database {
           type?: string | null
           progress_rate?: number | null
           current_step?: number | null
+          is_team?: boolean | null
+          team_code?: string | null
+          member_emails?: string[] | null
+          is_hidden?: boolean | null
+          last_editor_id?: string | null
+          created_at?: string | null
+          updated_at?: string | null
         }
         Update: {
           id?: string
@@ -76,6 +123,13 @@ export interface Database {
           type?: string | null
           progress_rate?: number | null
           current_step?: number | null
+          is_team?: boolean | null
+          team_code?: string | null
+          member_emails?: string[] | null
+          is_hidden?: boolean | null
+          last_editor_id?: string | null
+          created_at?: string | null
+          updated_at?: string | null
         }
       }
       project_steps: {

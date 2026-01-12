@@ -1,5 +1,8 @@
 import { createClient } from '@/utils/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
+import { Database } from '@/types/supabase'
+
+type Project = Database['public']['Tables']['projects']['Row']
 
 export const dynamic = 'force-dynamic'
 
@@ -42,9 +45,10 @@ export async function GET(request: NextRequest) {
     }
 
     // 권한 확인: 작성자이거나 팀원인지
-    const isAuthor = (project as any).user_id === user.id
-    const memberEmails = (project as any).member_emails || []
-    const isMember = (project as any).is_team && Array.isArray(memberEmails) && memberEmails.includes(user.email)
+    const projectData = project as Project
+    const isAuthor = projectData.user_id === user.id
+    const memberEmails = projectData.member_emails || []
+    const isMember = projectData.is_team && Array.isArray(memberEmails) && memberEmails.includes(user.email)
 
     if (!isAuthor && !isMember) {
       return NextResponse.json(

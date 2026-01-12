@@ -5,6 +5,9 @@ import { createClient } from '@/utils/supabase/client'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { ArrowLeft, Save, X, Users, User, Globe, Calendar, Package } from 'lucide-react'
+import { Database } from '@/types/supabase'
+
+type ProjectInsert = Database['public']['Tables']['projects']['Insert']
 
 export default function NewProjectPage() {
   const router = useRouter()
@@ -39,31 +42,21 @@ export default function NewProjectPage() {
             .filter((email) => email && email !== user.email)
         : []
 
-      // 팀 코드 생성 (8자리 알파벳+숫자 조합)
-      const generateTeamCode = () => {
-        const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
-        let code = ''
-        for (let i = 0; i < 8; i++) {
-          code += chars.charAt(Math.floor(Math.random() * chars.length))
-        }
-        return code
+      // 팀 코드는 DB 트리거(set_team_code)가 자동으로 생성
+      const projectInsert: ProjectInsert = {
+        user_id: user.id,
+        title: formData.title || '제목 없음',
+        type: formData.type,
+        team_id: formData.team_id || null,
+        progress_rate: 0,
+        current_step: 0,
+        is_team: isTeamProject,
+        member_emails: memberEmails,
+        // team_code는 제외 - DB 트리거가 자동 생성
       }
-
-      const teamCode = isTeamProject ? generateTeamCode() : null
-
       const { data: project, error } = await supabase
         .from('projects')
-        .insert({
-          user_id: user.id,
-          title: formData.title || '제목 없음',
-          type: formData.type,
-          team_id: formData.team_id || null,
-          progress_rate: 0,
-          current_step: 0,
-          is_team: isTeamProject,
-          member_emails: memberEmails,
-          team_code: teamCode,
-        } as any)
+        .insert(projectInsert)
         .select()
         .single()
 
@@ -72,13 +65,13 @@ export default function NewProjectPage() {
         throw error
       }
 
-      if (!project || !(project as any).id) {
+      if (!project || !project.id) {
         throw new Error('프로젝트가 생성되지 않았습니다.')
       }
 
       // Show success message and redirect
-      if (isTeamProject && (project as any).team_code) {
-        const teamCode = (project as any).team_code
+      if (isTeamProject && project.team_code) {
+        const teamCode = project.team_code
         alert(
           `팀 프로젝트가 성공적으로 생성되었습니다!\n\n` +
           `팀 코드: ${teamCode}\n\n` +
@@ -91,9 +84,9 @@ export default function NewProjectPage() {
       // Redirect to week1 workbook with project ID (프로젝트 타입에 따라 다른 경로)
       const projectType = formData.type
       if (projectType === 'event') {
-        router.push(`/workbook-event/week1?projectId=${(project as any).id}`)
+        router.push(`/workbook-event/week1?projectId=${project.id}`)
       } else {
-        router.push(`/workbook/week1?projectId=${(project as any).id}`)
+        router.push(`/workbook/week1?projectId=${project.id}`)
       }
     } catch (error: any) {
       console.error('프로젝트 생성 실패:', error)

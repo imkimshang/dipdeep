@@ -1,6 +1,10 @@
 import { useState, useCallback } from 'react'
 import { createClient } from '@/utils/supabase/client'
 import { useRouter } from 'next/navigation'
+import { Database } from '@/types/supabase'
+
+type Project = Database['public']['Tables']['projects']['Row']
+type ProjectUpdate = Database['public']['Tables']['projects']['Update']
 
 export function useProjectSettings(projectId: string) {
   const supabase = createClient()
@@ -35,9 +39,10 @@ export function useProjectSettings(projectId: string) {
 
       if (project) {
         // 권한 확인: 작성자이거나 팀원인지
-        const isOwner = (project as any).user_id === user.id
-        const memberEmails = (project as any).member_emails || []
-        const isTeamMember = (project as any).is_team && Array.isArray(memberEmails) && memberEmails.includes(user.email || '')
+        const projectData = project as Project
+        const isOwner = projectData.user_id === user.id
+        const memberEmails = projectData.member_emails || []
+        const isTeamMember = projectData.is_team && Array.isArray(memberEmails) && memberEmails.includes(user.email || '')
 
         if (!isOwner && !isTeamMember) {
           console.error('프로젝트 접근 권한이 없습니다.')
@@ -57,7 +62,7 @@ export function useProjectSettings(projectId: string) {
         setProjectInfo({ 
           title: proj.title, 
           id: proj.id,
-          type: (project as any).type || null,
+          type: projectData.type || null,
           is_team: proj.is_team || false,
           team_code: proj.team_code || null,
           member_emails: proj.member_emails || [],
@@ -96,9 +101,10 @@ export function useProjectSettings(projectId: string) {
         }
 
         // 개인 프로젝트는 작성자만 수정 가능, 팀 프로젝트는 개설자만 수정 가능
-        const { error } = await (supabase.from('projects') as any).update({
+        const updateData: ProjectUpdate = {
           title: newTitle.trim(),
-        }).eq('id', projectInfo.id).eq('user_id', user.id)
+        }
+        const { error } = await supabase.from('projects').update(updateData).eq('id', projectInfo.id).eq('user_id', user.id)
 
         if (error) throw error
 
@@ -264,9 +270,10 @@ export function useProjectSettings(projectId: string) {
           memberEmails.map(email => email.trim()).filter(email => email && email !== user.email)
         )).slice(0, 6)
 
-        const { error } = await (supabase.from('projects') as any).update({
+        const updateData: ProjectUpdate = {
           member_emails: validEmails,
-        }).eq('id', projectInfo.id).eq('user_id', user.id)
+        }
+        const { error } = await supabase.from('projects').update(updateData).eq('id', projectInfo.id).eq('user_id', user.id)
 
         if (error) throw error
 
@@ -300,9 +307,10 @@ export function useProjectSettings(projectId: string) {
 
       // 팀 프로젝트 숨김 권한: 팀에 속한 누구나 가능
       // 개인 프로젝트는 작성자만 숨김 가능
-      let query = (supabase.from('projects') as any).update({
+      const updateData: ProjectUpdate = {
         is_hidden: true,
-      }).eq('id', projectInfo.id)
+      }
+      let query = supabase.from('projects').update(updateData).eq('id', projectInfo.id)
 
       if (!projectInfo.is_team) {
         // 개인 프로젝트는 작성자만 숨김 가능
@@ -346,9 +354,10 @@ export function useProjectSettings(projectId: string) {
       }
 
       // 팀 프로젝트 숨김 해제 권한: 팀에 속한 누구나 가능
-      let query = (supabase.from('projects') as any).update({
+      const updateData: ProjectUpdate = {
         is_hidden: false,
-      }).eq('id', projectInfo.id)
+      }
+      let query = supabase.from('projects').update(updateData).eq('id', projectInfo.id)
 
       if (!projectInfo.is_team) {
         // 개인 프로젝트는 작성자만 숨김 해제 가능

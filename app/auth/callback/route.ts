@@ -22,7 +22,7 @@ export async function GET(request: Request) {
           .eq('id', user.id)
           .single()
 
-        // 프로필이 없으면 생성
+        // 프로필이 없으면 생성 (회원가입 시 전달된 메타데이터 사용)
         if (!profile) {
           const { error: profileError } = await supabase
             .from('profiles')
@@ -30,10 +30,14 @@ export async function GET(request: Request) {
               id: user.id,
               email: user.email,
               full_name: user.user_metadata?.full_name || '',
+              phone_number: user.user_metadata?.phone_number || null,
+              interest_fields: user.user_metadata?.interest_fields || null,
               role: 'student',
               username: user.email?.split('@')[0] || 'user',
+              status: 'active', // 회원가입 시 활성 상태로 설정
               updated_at: new Date().toISOString(),
-            })
+              created_at: new Date().toISOString(),
+            } as any)
 
           if (profileError) {
             console.error('프로필 생성 오류:', profileError)

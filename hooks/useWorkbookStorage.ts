@@ -8,6 +8,11 @@ import {
   canEditField,
   FieldEditors,
 } from './useFieldEditorTracking'
+import { Database } from '@/types/supabase'
+
+type Project = Database['public']['Tables']['projects']['Row']
+type ProjectUpdate = Database['public']['Tables']['projects']['Update']
+type ProjectStepInsert = Database['public']['Tables']['project_steps']['Insert']
 
 interface StepData {
   [key: string]: any
@@ -26,12 +31,12 @@ export function useWorkbookStorage(projectId: string) {
       if (!projectId) return null
 
       try {
-        const { data: step, error: err } = (await supabase
+        const { data: step, error: err } = await supabase
           .from('project_steps')
           .select('*')
           .eq('project_id', projectId)
           .eq('step_number', stepNumber)
-          .maybeSingle()) as any
+          .maybeSingle()
 
         // 데이터가 없거나 에러가 발생한 경우 (PGRST116 등) null 반환
         if (err) {
@@ -117,9 +122,10 @@ export function useWorkbookStorage(projectId: string) {
         }
 
         // 권한 검증: 작성자이거나 팀원인지 확인
-        const isAuthor = (project as any).user_id === user.id
-        const memberEmails = (project as any).member_emails || []
-        const isTeamMember = (project as any).is_team && memberEmails.includes(user.email)
+        const projectData = project as Project
+        const isAuthor = projectData.user_id === user.id
+        const memberEmails = projectData.member_emails || []
+        const isTeamMember = projectData.is_team && memberEmails.includes(user.email || '')
 
         if (!isAuthor && !isTeamMember) {
           setError('이 프로젝트에 대한 접근 권한이 없습니다.')
@@ -147,12 +153,9 @@ export function useWorkbookStorage(projectId: string) {
         )
 
         // 변경된 필드 추출 및 편집 권한 확인 (팀 프로젝트인 경우만)
-        if ((project as any).is_team && isTeamMember) {
+        if (projectData.is_team && isTeamMember) {
           try {
             const changedFields = getChangedFields(cleanOldData, data, user.id)
-            
-            console.log('변경된 필드:', changedFields)
-            console.log('기존 필드 편집자:', oldFieldEditors)
             
             // 변경된 필드 중 권한이 없는 필드가 있는지 확인
             for (const [fieldPath, editorId] of Object.entries(changedFields)) {
@@ -166,67 +169,57 @@ export function useWorkbookStorage(projectId: string) {
             
             // 필드 편집자 정보 병합
             const dataWithEditors = mergeFieldEditors(data, oldFieldEditors, changedFields)
-            console.log('병합된 데이터:', dataWithEditors)
             
             // Save step data with field editors
-            const { error: err } = await supabase.from('project_steps').upsert(
-              {
-                project_id: projectId,
-                step_number: stepNumber,
-                step_data: dataWithEditors,
-              } as any,
-              {
-                onConflict: 'project_id,step_number',
-              }
-            )
+            const stepInsert: ProjectStepInsert = {
+              project_id: projectId,
+              step_number: stepNumber,
+              step_data: dataWithEditors,
+            }
+            const { error: err } = await supabase.from('project_steps').upsert(stepInsert, {
+              onConflict: 'project_id,step_number',
+            })
             
             if (err) throw err
           } catch (err: any) {
             console.error('필드 편집자 추적 오류:', err)
             // 오류 발생 시 기존 방식으로 저장 시도 (하위 호환성)
-            const { error: err2 } = await supabase.from('project_steps').upsert(
-              {
-                project_id: projectId,
-                step_number: stepNumber,
-                step_data: data,
-              } as any,
-              {
-                onConflict: 'project_id,step_number',
-              }
-            )
+            const stepInsertFallback: ProjectStepInsert = {
+              project_id: projectId,
+              step_number: stepNumber,
+              step_data: data,
+            }
+            const { error: err2 } = await supabase.from('project_steps').upsert(stepInsertFallback, {
+              onConflict: 'project_id,step_number',
+            })
             if (err2) throw err2
           }
         } else {
           // 개인 프로젝트이거나 작성자인 경우 - 기존처럼 저장
-          const { error: err } = await supabase.from('project_steps').upsert(
-            {
-              project_id: projectId,
-              step_number: stepNumber,
-              step_data: data,
-            } as any,
-            {
-              onConflict: 'project_id,step_number',
-            }
-          )
+          const stepInsert: ProjectStepInsert = {
+            project_id: projectId,
+            step_number: stepNumber,
+            step_data: data,
+          }
+          const { error: err } = await supabase.from('project_steps').upsert(stepInsert, {
+            onConflict: 'project_id,step_number',
+          })
           
           if (err) throw err
         }
 
         // Update project progress and last_editor_id if provided
-        if (progressRate !== undefined) {
-          await (supabase.from('projects') as any).update({
-            current_step: stepNumber,
-            progress_rate: progressRate,
-            last_editor_id: profile?.id || user.id,
-            updated_at: new Date(),
-          }).eq('id', projectId)
-        } else {
-          // progressRate가 없어도 last_editor_id는 업데이트
-          await (supabase.from('projects') as any).update({
-            last_editor_id: profile?.id || user.id,
-            updated_at: new Date(),
-          }).eq('id', projectId)
+        const updateData: ProjectUpdate = {
+          last_editor_id: profile?.id || user.id,
+          updated_at: new Date().toISOString(),
         }
+        
+        if (progressRate !== undefined) {
+          updateData.current_step = stepNumber
+          updateData.progress_rate = progressRate
+        }
+        
+        await supabase.from('projects').update(updateData).eq('id', projectId)
 
         return true
       } catch (err: any) {
@@ -278,9 +271,10 @@ export function useWorkbookStorage(projectId: string) {
         }
 
         // 권한 검증: 작성자이거나 팀원인지 확인
-        const isAuthor = (project as any).user_id === user.id
-        const memberEmails = (project as any).member_emails || []
-        const isTeamMember = (project as any).is_team && memberEmails.includes(user.email)
+        const projectData = project as Project
+        const isAuthor = projectData.user_id === user.id
+        const memberEmails = projectData.member_emails || []
+        const isTeamMember = projectData.is_team && memberEmails.includes(user.email || '')
 
         if (!isAuthor && !isTeamMember) {
           setError('이 프로젝트에 대한 접근 권한이 없습니다.')
@@ -313,7 +307,7 @@ export function useWorkbookStorage(projectId: string) {
         }
 
         // 팀 프로젝트인 경우 필드 편집자 정보 처리
-        if ((project as any).is_team && isTeamMember) {
+        if (projectData.is_team && isTeamMember) {
           const changedFields = getChangedFields(cleanOldData, stepDataWithSubmit, user.id)
           
           // 변경된 필드 중 권한이 없는 필드가 있는지 확인 (is_submitted 필드는 제외)
@@ -329,48 +323,41 @@ export function useWorkbookStorage(projectId: string) {
           // 필드 편집자 정보 병합
           const dataWithEditors = mergeFieldEditors(stepDataWithSubmit, oldFieldEditors, changedFields)
           
-          const { error: err } = await (supabase.from('project_steps') as any).upsert(
-            {
-              project_id: projectId,
-              step_number: stepNumber,
-              step_data: dataWithEditors,
-            },
-            {
-              onConflict: 'project_id,step_number',
-            }
-          )
+          const stepInsert: ProjectStepInsert = {
+            project_id: projectId,
+            step_number: stepNumber,
+            step_data: dataWithEditors,
+          }
+          const { error: err } = await supabase.from('project_steps').upsert(stepInsert, {
+            onConflict: 'project_id,step_number',
+          })
           
           if (err) throw err
         } else {
           // 개인 프로젝트이거나 작성자인 경우
-          const { error: err } = await (supabase.from('project_steps') as any).upsert(
-            {
-              project_id: projectId,
-              step_number: stepNumber,
-              step_data: stepDataWithSubmit,
-            },
-            {
-              onConflict: 'project_id,step_number',
-            }
-          )
+          const stepInsert: ProjectStepInsert = {
+            project_id: projectId,
+            step_number: stepNumber,
+            step_data: stepDataWithSubmit,
+          }
+          const { error: err } = await supabase.from('project_steps').upsert(stepInsert, {
+            onConflict: 'project_id,step_number',
+          })
           
           if (err) throw err
         }
 
-        if (progressRate !== undefined) {
-          await (supabase.from('projects') as any).update({
-            current_step: stepNumber,
-            progress_rate: progressRate,
-            last_editor_id: profile?.id || user.id,
-            updated_at: new Date(),
-          }).eq('id', projectId)
-        } else {
-          // progressRate가 없어도 last_editor_id는 업데이트
-          await (supabase.from('projects') as any).update({
-            last_editor_id: profile?.id || user.id,
-            updated_at: new Date(),
-          }).eq('id', projectId)
+        const updateData: ProjectUpdate = {
+          last_editor_id: profile?.id || user.id,
+          updated_at: new Date().toISOString(),
         }
+        
+        if (progressRate !== undefined) {
+          updateData.current_step = stepNumber
+          updateData.progress_rate = progressRate
+        }
+        
+        await supabase.from('projects').update(updateData).eq('id', projectId)
 
         return true
       } catch (err: any) {

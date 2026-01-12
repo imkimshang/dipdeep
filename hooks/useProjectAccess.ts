@@ -1,6 +1,9 @@
 import { useEffect } from 'react'
 import { createClient } from '@/utils/supabase/client'
 import { useRouter } from 'next/navigation'
+import { Database } from '@/types/supabase'
+
+type Project = Database['public']['Tables']['projects']['Row']
 
 export function useProjectAccess(projectId: string | null) {
   const router = useRouter()
@@ -36,9 +39,10 @@ export function useProjectAccess(projectId: string | null) {
         }
 
         // 권한 검증: 작성자이거나 팀원인지 확인
-        const isAuthor = (project as any).user_id === user.id
-        const memberEmails = (project as any).member_emails || []
-        const isTeamMember = (project as any).is_team && memberEmails.includes(user.email || '')
+        const projectData = project as Project
+        const isAuthor = projectData.user_id === user.id
+        const memberEmails = projectData.member_emails || []
+        const isTeamMember = projectData.is_team && memberEmails.includes(user.email || '')
 
         if (!isAuthor && !isTeamMember) {
           router.push('/dashboard')
@@ -51,6 +55,7 @@ export function useProjectAccess(projectId: string | null) {
     }
 
     checkAccess()
-  }, [projectId, router, supabase])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projectId, router])
 }
 
