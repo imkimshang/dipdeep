@@ -4,7 +4,7 @@ import { useState, useEffect, Suspense } from 'react'
 import { createClient } from '@/utils/supabase/client'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
-import { ArrowLeft, Mail, Lock, Send, CheckCircle, AlertCircle } from 'lucide-react'
+import { ArrowLeft, Mail, Lock } from 'lucide-react'
 import { Database } from '@/types/supabase'
 
 type Profile = Database['public']['Tables']['profiles']['Row']
@@ -31,9 +31,6 @@ function LoginForm() {
   const [emailExists, setEmailExists] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [showEmailVerification, setShowEmailVerification] = useState(false)
-  const [resendEmailLoading, setResendEmailLoading] = useState(false)
-  const [resendEmailSuccess, setResendEmailSuccess] = useState(false)
   
   // 관심분야 선택 옵션
   const interestOptions = [
@@ -138,25 +135,19 @@ function LoginForm() {
         if (error) {
           console.error('로그인 오류:', error)
           
-          // 이메일 미확인 오류 처리
+          // 이메일 미확인 오류 처리 (이메일 인증 비활성화 시 발생하지 않음)
           if (error.message?.includes('Email not confirmed') || 
               error.message?.includes('email not confirmed') ||
               error.message?.includes('not been confirmed')) {
-            setShowEmailVerification(true)
-            setError("이메일 인증이 필요합니다. 확인 이메일의 링크를 클릭해주세요.")
-            return
+            setError("이메일 인증 오류가 발생했습니다. Supabase 설정을 확인해주세요.")
+            throw error
           }
           
           throw error
         }
         
-        // 이메일 인증 확인
-        if (data.user && !data.user.email_confirmed_at) {
-          await supabase.auth.signOut()
-          setShowEmailVerification(true)
-          setError("이메일 인증이 필요합니다. 확인 이메일의 링크를 클릭해주세요.")
-          return
-        }
+        // 이메일 인증 확인 (이메일 인증 비활성화 시 필요 없음)
+        // 주석 처리: 이메일 인증 없이 바로 로그인 가능하도록 변경
         
         // 로그인 성공 후 활성 계정인지 확인
         if (data.user) {
@@ -251,13 +242,12 @@ function LoginForm() {
         }
         
         // 1. Supabase Auth에 계정 생성 (이메일 인증 필수)
-        // 이메일 확인 링크의 리다이렉트 URL 설정
-        const redirectTo = `${window.location.origin}/auth/callback`
+        // 회원가입 (이메일 인증 없이 바로 로그인)
         const { data, error } = await supabase.auth.signUp({
           email,
           password,
           options: {
-            emailRedirectTo: redirectTo,
+            // emailRedirectTo 제거 - 이메일 인증 없이 바로 로그인
             data: {
               full_name: fullName,
               phone_number: phone,
@@ -267,9 +257,15 @@ function LoginForm() {
         })
 
         if (error) {
-          console.error("가입 에러:", error)
-          console.error("에러 코드:", error.status)
-          console.error("에러 상세:", JSON.stringify(error, null, 2))
+          console.error("[회원가입] 가입 에러:", error)
+          console.error("[회원가입] 에러 코드:", error.status)
+          console.error("[회원가입] 에러 메시지:", error.message)
+          console.error("[회원가입] 에러 상세:", JSON.stringify(error, null, 2))
+          
+          // 이메일 관련 에러인지 확인
+          if (error.message?.includes('email') || error.message?.includes('Email')) {
+            console.error("[회원가입] 이메일 관련 오류 감지 - Supabase 설정 확인 필요")
+          }
           
           // Rate limit 오류 처리
           if (error.message?.includes('seconds') || error.message?.includes('rate limit')) {
@@ -308,33 +304,20 @@ function LoginForm() {
           throw error
         }
 
-        // 2. 계정 생성 성공 시, 방금 생성된 유저 ID를 가지고 profiles 테이블에 추가 정보 저장
+        // 2. 계정 생성 성공 시, 프로필 생성 및 자동 로그인
         if (data.user) {
-          // 세션이 완전히 설정될 때까지 대기 (최대 5초, 더 자주 확인)
-          let sessionReady = false
-          for (let i = 0; i < 10; i++) {
-            const { data: sessionData, error: sessionError } = await supabase.auth.getSession()
-            if (sessionData?.session && sessionData.session.user?.id === data.user.id) {
-              sessionReady = true
-              console.log('세션 설정 완료, 프로필 생성 시도')
-              break
-            }
-            // 500ms마다 확인
-            await new Promise((resolve) => setTimeout(resolve, 500))
-          }
+          // 세션 확인 (이메일 인증 없이도 세션이 생성되어야 함)
+          const { data: sessionData } = await supabase.auth.getSession()
           
-          if (!sessionReady) {
-            // 세션이 설정되지 않으면 프로필 생성을 서버 사이드에서 처리하도록 안내
-            console.error('세션 설정 실패 - 이메일 확인이 필요할 수 있습니다')
-            alert(
-              "회원가입 요청이 접수되었습니다.\n\n" +
-              (data.user.email_confirmed_at 
-                ? "프로필은 자동으로 생성됩니다. 잠시 후 다시 로그인해주세요."
-                : "이메일 확인 링크를 클릭한 후 로그인해주세요.\n프로필은 로그인 시 자동으로 생성됩니다.")
-            )
-            // 프로필 없이도 계속 진행 (나중에 로그인 시 생성됨)
-            window.location.href = '/login?mode=login'
-            return
+          if (!sessionData?.session) {
+            // 세션이 없으면 잠시 대기 후 재시도
+            await new Promise((resolve) => setTimeout(resolve, 1000))
+            const { data: retrySession } = await supabase.auth.getSession()
+            
+            if (!retrySession?.session) {
+              setError('세션 생성에 실패했습니다. 다시 시도해주세요.')
+              return
+            }
           }
 
           // 프로필 생성 시도
@@ -350,6 +333,7 @@ function LoginForm() {
             updated_at: new Date().toISOString(),
             created_at: new Date().toISOString(),
           }
+          
           const { error: profileError } = await supabase
             .from('profiles')
             .insert(profileInsert)
@@ -376,18 +360,12 @@ function LoginForm() {
               alert("프로필 저장 중 오류가 발생했습니다: " + profileError.message)
               throw profileError
             }
-          } else {
-            // 이메일 인증이 필요한 경우 안내
-            if (!data.user?.email_confirmed_at) {
-              setShowEmailVerification(true)
-              setError(null) // 에러 메시지 초기화
-              return
-            }
-            
-            alert("회원가입이 완료되었습니다!")
-            // 완전한 페이지 리로드를 통해 세션을 서버에 전달
-            window.location.href = '/dashboard'
           }
+          
+          // 회원가입 성공 - 바로 대시보드로 이동
+          alert("회원가입이 완료되었습니다!")
+          // 완전한 페이지 리로드를 통해 세션을 서버에 전달
+          window.location.href = '/dashboard'
         }
       }
     } catch (err: any) {
@@ -397,52 +375,6 @@ function LoginForm() {
     }
   }
 
-  // 이메일 재전송 함수
-  const handleResendEmail = async () => {
-    if (!email) {
-      setError('이메일 주소를 입력해주세요.')
-      return
-    }
-
-    setResendEmailLoading(true)
-    setResendEmailSuccess(false)
-    setError(null)
-
-    try {
-      const redirectTo = `${window.location.origin}/auth/callback`
-      const { error: resendError } = await supabase.auth.resend({
-        type: 'signup',
-        email: email,
-        options: {
-          emailRedirectTo: redirectTo,
-        },
-      })
-
-      if (resendError) {
-        console.error('이메일 재전송 오류:', resendError)
-        
-        // Rate limit 오류 처리
-        if (resendError.message?.includes('seconds') || resendError.message?.includes('rate limit')) {
-          const waitTimeMatch = resendError.message.match(/(\d+)\s*seconds?/i)
-          const waitTime = waitTimeMatch ? waitTimeMatch[1] : '일부'
-          setError(`잠시 후 다시 시도해주세요. (약 ${waitTime}초 대기 필요)`)
-        } else {
-          setError(`이메일 재전송 실패: ${resendError.message}`)
-        }
-        return
-      }
-
-      setResendEmailSuccess(true)
-      setTimeout(() => {
-        setResendEmailSuccess(false)
-      }, 5000)
-    } catch (err: any) {
-      console.error('이메일 재전송 예외:', err)
-      setError('이메일 재전송 중 오류가 발생했습니다.')
-    } finally {
-      setResendEmailLoading(false)
-    }
-  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 flex items-center justify-center p-4">
@@ -596,92 +528,23 @@ function LoginForm() {
             </>
           )}
 
-          {/* 이메일 인증 안내 UI */}
-          {showEmailVerification && (
-            <div className="p-6 bg-blue-50/80 backdrop-blur-sm border-2 border-blue-200/50 rounded-xl space-y-4">
-              <div className="flex items-start gap-3">
-                <Mail className="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0" />
-                <div className="flex-1">
-                  <h3 className="font-semibold text-blue-900 mb-2">이메일 인증이 필요합니다</h3>
-                  <p className="text-sm text-blue-700 mb-4">
-                    회원가입이 완료되었습니다!<br />
-                    <strong>{email}</strong>로 발송된 확인 링크를 클릭해주세요.
-                  </p>
-                  
-                  <div className="space-y-3">
-                    <button
-                      type="button"
-                      onClick={handleResendEmail}
-                      disabled={resendEmailLoading}
-                      className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm font-medium"
-                    >
-                      {resendEmailLoading ? (
-                        <>
-                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                          전송 중...
-                        </>
-                      ) : (
-                        <>
-                          <Send className="w-4 h-4" />
-                          인증 이메일 다시 보내기
-                        </>
-                      )}
-                    </button>
-
-                    {resendEmailSuccess && (
-                      <div className="flex items-center gap-2 p-3 bg-green-50 border border-green-200 rounded-lg text-green-700 text-sm">
-                        <CheckCircle className="w-4 h-4" />
-                        <span>이메일이 재전송되었습니다. 받은편지함을 확인해주세요.</span>
-                      </div>
-                    )}
-
-                    <div className="pt-2 border-t border-blue-200">
-                      <p className="text-xs text-blue-600 mb-2 font-medium">이메일을 받지 못하셨나요?</p>
-                      <ul className="text-xs text-blue-600 space-y-1 list-disc list-inside">
-                        <li>스팸 폴더를 확인해주세요</li>
-                        <li>이메일 주소가 정확한지 확인해주세요</li>
-                        <li>몇 분 후에도 이메일이 오지 않으면 위의 "다시 보내기" 버튼을 클릭해주세요</li>
-                      </ul>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
           {error && (
             <div className="p-4 bg-red-50/80 backdrop-blur-sm border border-red-200/50 rounded-xl text-red-700 text-sm">
               {error}
             </div>
           )}
 
-          {!showEmailVerification && (
-            <button
-              type="submit"
-              disabled={loading || (!isLogin && (emailExists || interestFields.length === 0))}
-              className="btn-primary w-full disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-black"
-            >
-              {loading
-                ? '처리 중...'
-                : isLogin
-                ? '로그인'
-                : '회원가입'}
-            </button>
-          )}
-
-          {showEmailVerification && (
-            <button
-              type="button"
-              onClick={() => {
-                setShowEmailVerification(false)
-                setIsLogin(true)
-                setError(null)
-              }}
-              className="btn-secondary w-full"
-            >
-              로그인 페이지로 이동
-            </button>
-          )}
+          <button
+            type="submit"
+            disabled={loading || (!isLogin && (emailExists || interestFields.length === 0))}
+            className="btn-primary w-full disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-black"
+          >
+            {loading
+              ? '처리 중...'
+              : isLogin
+              ? '로그인'
+              : '회원가입'}
+          </button>
         </form>
 
         <div className="mt-8 text-center">
